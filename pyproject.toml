@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "nintynine-boundaries"
+version = "0.1.0"
+description = "Some utilities to generate boundaries in different file formats from OSM and Overpass"
+license = "MIT"
+authors = ["Timothy Ellersiek <timothy.ellersiek@fastmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+geopandas = "^0.10.2"
+osm2geojson = "^0.2.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+isort = "^5.10.1"
+flake8 = "^4.0.1"
+flake8-docstrings = "^1.6.0"
+darglint = "^1.8.1"
+black = "^22.3.0"
+pre-commit = "^2.19.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+make_boundary = "nintynine_boundaries.make_boundary:main"
