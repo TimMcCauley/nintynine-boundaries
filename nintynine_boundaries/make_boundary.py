@@ -129,7 +129,7 @@ def main():
                                 if geometry.type not in ["Point", "LineString"]
                             ]
 
-                        logger.debug(f"{len(intersection)} intersected land polygons")
+                        logger.debug(f"clipping land polygons complete")
 
                         gdf_land = GeoDataFrame(
                             geometry=GeoSeries(intersection), crs="epsg:4326"
