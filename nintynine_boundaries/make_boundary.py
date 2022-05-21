@@ -91,11 +91,12 @@ def main():
                 gdf_maritime = GeoDataFrame.from_features(
                     features=data, crs="epsg:4326"
                 )
-
-                # we only want boundaries
+                gdf_maritime = gdf_maritime.drop(columns=["tags"])
+                # we only want polygons
                 gdf_maritime = gdf_maritime[
                     gdf_maritime["geometry"].apply(lambda x: x.type != "Point")
-                ]
+                ].explode(index_parts=False)
+
                 if not set(gdf_maritime.geom_type).isdisjoint(
                     ("MultiPolygon", "Polygon")
                 ):
@@ -117,27 +118,26 @@ def main():
                             land_data_dir,
                             bbox=bbox,
                         )
-                        intersection = (gdf_osm_land.unary_union).intersection(
-                            gdf_maritime.unary_union
+                        gdf_intersection = gdf_osm_land.overlay(
+                            gdf_maritime, how="intersection"
                         )
-                        # sometimes the intersection will be a geometry collection
-                        # we have to unpack; we dont want that geometry type in the output
-                        if hasattr(intersection, "geoms"):
-                            intersection = [
-                                geometry
-                                for geometry in intersection.geoms
-                                if geometry.type not in ["Point", "LineString"]
-                            ]
-
-                        logger.debug(f"clipping land polygons complete")
-
-                        gdf_land = GeoDataFrame(
-                            geometry=GeoSeries(intersection), crs="epsg:4326"
+                        # a small hack
+                        # https://gis.stackexchange.com/questions/296663/dissolve-not-based-on-attribute-in-geopandas
+                        gdf_intersection["dissolve_column"] = 0
+                        gdf_intersection = gdf_intersection.dissolve(
+                            by="dissolve_column"
                         )
+                        gdf_intersection = GeoSeries(
+                            [geom for geom in gdf_intersection.geometry.iloc[0].geoms],
+                            crs="epsg:4326",
+                        )
+
+                        logger.debug(f"overlaying land polygons complete")
+
                         to_files(
                             admin_level,
                             alpha2,
-                            gdf_land,
+                            gdf_intersection,
                             formats,
                             include_maritime=False,
                         )

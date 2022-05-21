@@ -9,6 +9,7 @@ authors = ["Timothy Ellersiek <timothy.ellersiek@fastmail.com>"]
 python = "^3.8"
 geopandas = "^0.10.2"
 osm2geojson = "^0.2.0"
+Rtree = "^1.0.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
