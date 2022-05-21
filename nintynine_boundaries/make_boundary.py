@@ -135,9 +135,8 @@ def main():
                         else:
                             geometries = [gdf_intersection.geometry.iloc[0]]
 
-                        gdf_intersection = GeoSeries(
-                            geometries,
-                            crs="epsg:4326",
+                        gdf_intersection = GeoDataFrame(
+                            geometry=GeoSeries(geometries, crs="epsg:4326")
                         )
 
                         logger.debug(f"overlaying land polygons complete")
