@@ -9,7 +9,31 @@ Command line utility to generate administrative boundaries from [OpenStreetMap](
 Clone this repository and run `poetry install` from the root folder. In order to generate not only maritime but also land (coastal) boundaries, you will need to download land polygons derived from OpenStreetMap and generiously hosted [here](https://osmdata.openstreetmap.de/data/land-polygons.html). To decrease the computation time please download the [WGS84 split variant](https://osmdata.openstreetmap.de/download/land-polygons-split-4326.zip). 
 
 
-## Usage
+## Usage & Examples
+
+```sh
+make_boundary --help
+usage: make_boundary [-h] -a ALPHA2 [ALPHA2 ...] -f FORMATS [FORMATS ...] [-l ADMIN_LEVEL] [-d LAND_DATA_DIR]
+                     [--debug] [--no-debug]
+
+required arguments:
+  -a ALPHA2 [ALPHA2 ...], --alpha2 ALPHA2 [ALPHA2 ...]
+                        List of ISO-3166-1 alpha2 country codes, e.g. ES FR DE
+  -f FORMATS [FORMATS ...], --formats FORMATS [FORMATS ...]
+                        Output formats, one or multiple of shp, gpkg, csv, geojson, mapinfo
+
+optional arguments:
+  -l ADMIN_LEVEL, --admin_level ADMIN_LEVEL
+                        OSM administrative level, currently only level 2 supported. Read more at
+                        https://wiki.openstreetmap.org/wiki/Key:admin_level
+  -d LAND_DATA_DIR, --land_data_dir LAND_DATA_DIR
+                        Path to the OSM land data polygons folder, read more and download from
+                        https://osmdata.openstreetmap.de/data/land-polygons.html
+  --debug
+  --no-debug
+```
+
+
 
 ### Generate the maritime boundary as GeoJSON for Australia:
 

@@ -26,7 +26,7 @@ def cmdline_args() -> Namespace:
         nargs="+",
         default=[],
         required=True,
-        help="List of ISO-3166-1 alpha2 codes",
+        help="List of ISO-3166-1 alpha2 country codes, e.g. ES FR DE",
     )
     required.add_argument(
         "-f",
@@ -34,20 +34,20 @@ def cmdline_args() -> Namespace:
         nargs="+",
         default=[],
         required=True,
-        help="Output formats. One or multiple of SHP, GPKG, CSV, GEOJSON, MAPINFO",
+        help="Output formats, one or multiple of shp, gpkg, csv, geojson, mapinfo",
     )
     optional.add_argument(
         "-l",
         "--admin_level",
         type=int,
-        help="OpenStreetMap administrative level. Currently only level 2 supportted. Read more at https://wiki.openstreetmap.org/wiki/Key:admin_level",
+        help="OSM administrative level, currently only level 2 supported. Read more at https://wiki.openstreetmap.org/wiki/Key:admin_level",
         default=2,
     )
     optional.add_argument(
         "-d",
         "--land_data_dir",
         type=Path,
-        help="Path to OpenStreetMap land data folder, read more and download from https://osmdata.openstreetmap.de/data/land-polygons.html",
+        help="Path to the OSM land data polygons folder, read more and download from https://osmdata.openstreetmap.de/data/land-polygons.html",
     )
     optional.add_argument("--debug", action="store_true")
     optional.add_argument("--no-debug", dest="debug", action="store_false")
@@ -61,7 +61,7 @@ def main():
     which includes maritime boundaries.
     The result is exported to a geodataframe and saved to a set of files.
     If openstreetmap land polygons are downloaded and provided these are then intersected
-    with the country relation to obtain the detailed coastal boundaries."""
+    with the country relation to obtain the more detailed coastal boundaries."""
 
     try:
         args = cmdline_args()

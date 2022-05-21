@@ -4,6 +4,7 @@ from pathlib import Path
 from shutil import rmtree
 from typing import Tuple, TypedDict, List
 from zipfile import ZIP_DEFLATED, ZipFile
+from logging import Logger, getLogger, StreamHandler, Formatter, DEBUG, INFO
 
 warnings.simplefilter(action="ignore", category=UserWarning)
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -21,18 +22,30 @@ class Node(TypedDict):
 import logging
 
 
-def setup_custom_logger(name, debug):
-    formatter = logging.Formatter(
-        fmt="%(asctime)s - %(levelname)s - %(module)s - %(message)s"
-    )
-    handler = logging.StreamHandler()
+def setup_custom_logger(name: str, debug: bool) -> Logger:
+    """Sets up a custom logger
+
+    Parameters
+    ----------
+    name : str
+        the name of the logger
+    debug : bool
+        whether debug is enabled or not
+
+    Returns
+    -------
+    Logger
+        the python Logger instance
+    """
+    formatter = Formatter(fmt="%(asctime)s - %(levelname)s - %(module)s - %(message)s")
+    handler = StreamHandler()
     handler.setFormatter(formatter)
 
-    logger = logging.getLogger(name)
+    logger = getLogger(name)
     if debug:
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(DEBUG)
     else:
-        logger.setLevel(logging.INFO)
+        logger.setLevel(INFO)
     logger.addHandler(handler)
 
     return logger
