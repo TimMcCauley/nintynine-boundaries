@@ -127,8 +127,16 @@ def main():
                         gdf_intersection = gdf_intersection.dissolve(
                             by="dissolve_column"
                         )
+                        # can be single or multipart geometries
+                        if hasattr(gdf_intersection.geometry.iloc[0], "geoms"):
+                            geometries = [
+                                geom for geom in gdf_intersection.geometry.iloc[0].geoms
+                            ]
+                        else:
+                            geometries = [gdf_intersection.geometry.iloc[0]]
+
                         gdf_intersection = GeoSeries(
-                            [geom for geom in gdf_intersection.geometry.iloc[0].geoms],
+                            geometries,
                             crs="epsg:4326",
                         )
 
