@@ -148,6 +148,9 @@ def to_files(
         "CSV": "CSV",
         "SHP": "SHP",
         "MAPINFO": "MapInfo File",
+        "KML": "KML",
+        "FGB": "FlatGeobuf",
+        "PGDUMP": "PGDUMP",
     }
 
     for driver in formats:

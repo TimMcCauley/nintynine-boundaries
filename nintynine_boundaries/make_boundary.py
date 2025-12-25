@@ -34,7 +34,7 @@ def cmdline_args() -> Namespace:
         nargs="+",
         default=[],
         required=True,
-        help="Output formats, one or multiple of shp, gpkg, csv, geojson, mapinfo",
+        help="Output formats, one or multiple of shp, gpkg, csv, geojson, mapinfo, kml, fgb, pgdump",
     )
     optional.add_argument(
         "-l",
