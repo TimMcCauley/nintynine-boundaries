@@ -30,6 +30,12 @@ pip install nintynine-boundaries
 
 Please make sure you have installed [poetry](https://python-poetry.org/docs/) locally. Then clone this repository and run `poetry install` from the root folder.
 
+To activate the virtual environment:
+
+```bash
+eval $(poetry env activate)
+```
+
 ### Prerequisites
 
 - Python 3.10 or higher
