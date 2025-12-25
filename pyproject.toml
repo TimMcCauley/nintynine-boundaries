@@ -1,14 +1,30 @@
 [tool.poetry]
 name = "nintynine-boundaries"
 version = "0.1.0"
-description = "Some utilities to generate boundaries in different file formats from OSM and Overpass"
+description = "Generate administrative boundaries from OpenStreetMap via Overpass"
 license = "MIT"
 authors = ["Timothy Ellersiek <timothy.ellersiek@fastmail.com>"]
+readme = "README.md"
+homepage = "https://99boundaries.com"
+repository = "https://github.com/tellersiek/nintynine-boundaries"
+keywords = ["osm", "openstreetmap", "boundaries", "geospatial", "gis", "overpass"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Topic :: Utilities",
+]
 
 [tool.poetry.dependencies]
 python = "^3.10"
 geopandas = "^1.0.0"
-osm2geojson = "^0.2.0"
+osm2geojson = "^0.3.1"
 Rtree = "^1.3.0"
 numpy = "^1.26.0"
 

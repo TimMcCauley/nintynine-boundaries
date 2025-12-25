@@ -468,19 +468,22 @@ files = [
 
 [[package]]
 name = "osm2geojson"
-version = "0.2.9"
+version = "0.3.1"
 description = "Parse OSM and Overpass JSON"
 optional = false
-python-versions = "*"
+python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "osm2geojson-0.2.9-py3-none-any.whl", hash = "sha256:f16b64600fd478c9cd197dad96aeb21bd7e1283a29c21f9b41495dd2922b0064"},
-    {file = "osm2geojson-0.2.9.tar.gz", hash = "sha256:b4f67cf0bbe48f33dfb364e9365097363c4087e59698df11add0f4d66cbb34a8"},
+    {file = "osm2geojson-0.3.1-py3-none-any.whl", hash = "sha256:2199d18548926d25a4e3bc35ac2ba156ce4bd1dafea42f64634c96884023dba1"},
+    {file = "osm2geojson-0.3.1.tar.gz", hash = "sha256:f2e8857ba914444210a0640283780187a709a070c421a39ee1504338ad46d306"},
 ]
 
 [package.dependencies]
-requests = "*"
-shapely = "*"
+requests = ">=2.25.0"
+shapely = ">=2.0.0"
+
+[package.extras]
+dev = ["black (>=23.7.0)", "mypy (>=1.5.0)", "pre-commit (>=3.3.0)", "pytest (>=7.4.0)", "pytest-cov (>=4.1.0)", "ruff (>=0.1.0)"]
 
 [[package]]
 name = "packaging"
@@ -1299,4 +1302,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "2832fd16471b9bd65738d95ae3e44c7a1cd77fba621ac742a484a437dbb9e501"
+content-hash = "e5c953262d43432e28aa38e0578e3277f4fdbd5d0c1f57b40811b62f766f70c0"
