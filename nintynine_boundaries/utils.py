@@ -1,10 +1,10 @@
 import os
 import warnings
+from logging import DEBUG, INFO, Formatter, Logger, StreamHandler, getLogger
 from pathlib import Path
 from shutil import rmtree
-from typing import Tuple, TypedDict, List
+from typing import List, Tuple, TypedDict
 from zipfile import ZIP_DEFLATED, ZipFile
-from logging import Logger, getLogger, StreamHandler, Formatter, DEBUG, INFO
 
 warnings.simplefilter(action="ignore", category=UserWarning)
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -14,12 +14,8 @@ from pandas import DataFrame
 
 class Node(TypedDict):
     id: int
-    lon_lat: Tuple[int, int]
+    lon_lat: Tuple[float, float]
     way_id: int
-
-
-# flake8: noqa
-import logging
 
 
 def setup_custom_logger(name: str, debug: bool) -> Logger:
@@ -51,7 +47,7 @@ def setup_custom_logger(name: str, debug: bool) -> Logger:
     return logger
 
 
-def zipdir(path: str, ziph: ZipFile):
+def zipdir(path: str, ziph: ZipFile) -> None:
     """Zips a directory
 
     Parameters
@@ -69,7 +65,7 @@ def zipdir(path: str, ziph: ZipFile):
             )
 
 
-def gpd_to_file(driver: str, p: Path, filename: str, gdf: GeoDataFrame):
+def gpd_to_file(driver: str, p: Path, filename: str, gdf: GeoDataFrame) -> None:
     """Exports a GeoDataFrame to a file with specified format
 
     Parameters
@@ -83,16 +79,14 @@ def gpd_to_file(driver: str, p: Path, filename: str, gdf: GeoDataFrame):
     gdf : GeoDataFrame
         the GeoDataFrame to be used
     """
-    folder = p / driver.replace(" ", "")
+    folder: Path = p / driver.replace(" ", "")
     folder.mkdir(exist_ok=True)
 
-    local_file = folder / f"{filename}.{driver.lower().replace(' ', '')}"
-    zipped_file = p / f"{filename}.{driver.lower().replace(' ', '')}.zip"
+    local_file: Path = folder / f"{filename}.{driver.lower().replace(' ', '')}"
+    zipped_file: Path = p / f"{filename}.{driver.lower().replace(' ', '')}.zip"
 
     if driver == "CSV":
-        DataFrame(
-            gdf.assign(geometry=gdf["geometry"].apply(lambda param: param.wkt))
-        ).to_csv(local_file)
+        DataFrame(gdf.assign(geometry=gdf["geometry"].apply(lambda param: param.wkt))).to_csv(local_file)
 
     elif driver == "SHP":
         gdf.to_file(filename=local_file)
@@ -118,9 +112,9 @@ def to_files(
     admin_level: int,
     country: str,
     gdf: GeoDataFrame,
-    formats: List,
+    formats: List[str],
     include_maritime: bool,
-):
+) -> None:
     """Helper function looping over all drivers
 
     Parameters
@@ -134,15 +128,16 @@ def to_files(
     include_maritime : bool
         whether we are dealing with martime boundaries or not
     """
-    p = Path(__file__).absolute().parent / "data" / str(admin_level) / country
+    p: Path = Path(__file__).absolute().parent / "data" / str(admin_level) / country
     p.mkdir(parents=True, exist_ok=True)
 
+    filename: str
     if include_maritime:
         filename = f"{country}_{admin_level}"
     else:
         filename = f"{country}_{admin_level}_land"
 
-    driver_lookup = {
+    driver_lookup: dict[str, str] = {
         "GPKG": "GPKG",
         "GEOJSON": "GeoJSON",
         "CSV": "CSV",
@@ -162,17 +157,23 @@ def make_overpass_query(alpha2: str, admin_level: int) -> str:
 
     Parameters
     ----------
-    alpha2 : int
+    alpha2 : str
         ISO 3166-1 alpha-2 country code
-    admin_level : str
+    admin_level : int
         the administrative level
+
+    Raises
+    ------
+    ValueError
+        If admin_level is not supported (currently only level 2 is supported)
     """
 
     if admin_level == 2:
-
         return f"""
         [timeout:600][out:json];
         relation["boundary"="administrative"]["admin_level"="2"]["ISO3166-1"="{alpha2}"];
         (._;>;);
         out;
         """
+
+    raise ValueError(f"Admin level {admin_level} is not supported. Only level 2 is currently supported.")

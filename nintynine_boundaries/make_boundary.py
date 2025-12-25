@@ -2,6 +2,7 @@ import logging
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from geopandas import GeoDataFrame, GeoSeries, read_file
 from osm2geojson import json2geojson, overpass_call
@@ -14,11 +15,11 @@ from nintynine_boundaries.utils import (
 
 
 def cmdline_args() -> Namespace:
-    p = ArgumentParser()
+    parser = ArgumentParser()
 
-    p._action_groups.pop()
-    required = p.add_argument_group("required arguments")
-    optional = p.add_argument_group("optional arguments")
+    parser._action_groups.pop()
+    required = parser.add_argument_group("required arguments")
+    optional = parser.add_argument_group("optional arguments")
 
     required.add_argument(
         "-a",
@@ -53,10 +54,10 @@ def cmdline_args() -> Namespace:
     optional.add_argument("--no-debug", dest="debug", action="store_false")
     optional.set_defaults(debug=False)
 
-    return p.parse_args()
+    return parser.parse_args()
 
 
-def main():
+def main() -> None:
     """This function first makes a query to overpass to fetch the country relation
     which includes maritime boundaries.
     The result is exported to a geodataframe and saved to a set of files.
@@ -64,14 +65,14 @@ def main():
     with the country relation to obtain the more detailed coastal boundaries."""
 
     try:
-        args = cmdline_args()
-        alpha2_list = args.alpha2
-        admin_level = args.admin_level
-        land_data_dir = args.land_data_dir
-        formats = args.formats
-        debug = args.debug
+        args: Namespace = cmdline_args()
+        alpha2_list: List[str] = args.alpha2
+        admin_level: int = args.admin_level
+        land_data_dir: Optional[Path] = args.land_data_dir
+        formats: List[str] = args.formats
+        debug: bool = args.debug
         setup_custom_logger("du", debug)
-        logger = logging.getLogger("du")
+        logger: logging.Logger = logging.getLogger("du")
 
     except:
         print("\nTry $make_boundary --alpha2 ES")
@@ -82,24 +83,20 @@ def main():
 
             logger.info(f"processing {alpha2}...")
 
-            overpass_query = make_overpass_query(alpha2, admin_level)
-            data = json2geojson(overpass_call(overpass_query))
+            overpass_query: str = make_overpass_query(alpha2, admin_level)
+            data: Dict[str, Any] = json2geojson(overpass_call(overpass_query))
             if len(data["features"]) > 0:
 
                 logger.debug(f"overpass returned {len(data['features'])} features")
 
-                gdf_maritime = GeoDataFrame.from_features(
-                    features=data, crs="epsg:4326"
-                )
+                gdf_maritime: GeoDataFrame = GeoDataFrame.from_features(features=data, crs="epsg:4326")
                 gdf_maritime = gdf_maritime.drop(columns=["tags"])
                 # we only want polygons
-                gdf_maritime = gdf_maritime[
-                    gdf_maritime["geometry"].apply(lambda x: x.type != "Point")
-                ].explode(index_parts=False)
+                gdf_maritime = gdf_maritime[gdf_maritime["geometry"].apply(lambda x: x.type != "Point")].explode(
+                    index_parts=False
+                )
 
-                if not set(gdf_maritime.geom_type).isdisjoint(
-                    ("MultiPolygon", "Polygon")
-                ):
+                if not set(gdf_maritime.geom_type).isdisjoint(("MultiPolygon", "Polygon")):
                     to_files(
                         admin_level,
                         alpha2,
@@ -113,30 +110,25 @@ def main():
                     # we use the land data and intersect with the maritime
                     # administritive boundaries to obtain the coastal land boundaries
                     if land_data_dir:
-                        bbox = tuple(gdf_maritime.total_bounds)
-                        gdf_osm_land = read_file(
+                        bbox: Tuple[float, float, float, float] = tuple(gdf_maritime.total_bounds)
+                        gdf_osm_land: GeoDataFrame = read_file(
                             land_data_dir,
                             bbox=bbox,
                         )
-                        gdf_intersection = gdf_osm_land.overlay(
-                            gdf_maritime, how="intersection"
-                        )
+                        gdf_intersection: GeoDataFrame = gdf_osm_land.overlay(gdf_maritime, how="intersection")
                         # a small hack
                         # https://gis.stackexchange.com/questions/296663/dissolve-not-based-on-attribute-in-geopandas
                         gdf_intersection["dissolve_column"] = 0
-                        gdf_intersection = gdf_intersection.dissolve(
-                            by="dissolve_column"
-                        )
+                        gdf_intersection = gdf_intersection.dissolve(by="dissolve_column")
                         # can be single or multipart geometries
+                        geometries: List[Any]
                         if hasattr(gdf_intersection.geometry.iloc[0], "geoms"):
-                            geometries = [
-                                geom for geom in gdf_intersection.geometry.iloc[0].geoms
-                            ]
+                            geometries = [geom for geom in gdf_intersection.geometry.iloc[0].geoms]  # type: ignore[attr-defined]
                         else:
                             geometries = [gdf_intersection.geometry.iloc[0]]
 
                         gdf_intersection = GeoDataFrame(
-                            geometry=GeoSeries(geometries, crs="epsg:4326")
+                            geometry=GeoSeries(geometries, crs="epsg:4326")  # type: ignore[arg-type]
                         )
 
                         logger.debug(f"overlaying land polygons complete")
