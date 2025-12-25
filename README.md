@@ -11,7 +11,7 @@ A simple command line utility to generate administrative boundaries from [OpenSt
 ## Features
 
 - Generate maritime and land boundaries for any country
-- Multiple output formats: GeoJSON, ESRI Shapefile, GeoPackage, CSV (WKT), MapInfo
+- Multiple output formats: GeoJSON, ESRI Shapefile, GeoPackage, CSV (WKT), MapInfo, KML, FlatGeobuf, PostgreSQL dump
 - Batch processing for multiple countries at once
 - Uses OpenStreetMap data via Overpass API
 - High-quality land boundary generation with OSM land polygons
@@ -56,7 +56,7 @@ required arguments:
   -a ALPHA2 [ALPHA2 ...], --alpha2 ALPHA2 [ALPHA2 ...]
                         List of ISO-3166-1 alpha2 country codes, e.g. ES FR DE
   -f FORMATS [FORMATS ...], --formats FORMATS [FORMATS ...]
-                        Output formats, one or multiple of shp, gpkg, csv, geojson, mapinfo
+                        Output formats, one or multiple of shp, gpkg, csv, geojson, mapinfo, kml, fgb, pgdump
 
 optional arguments:
   -l ADMIN_LEVEL, --admin_level ADMIN_LEVEL
@@ -83,7 +83,7 @@ Depending on the selected country the processing time will vary. While the marit
 
 `make_boundary --alpha2 FR CA --formats csv --land_data_dir /path/to/land-polygons-split-4326`
 
-The file output formats can either be ESRI Shapefile, GeoJSON, CSV, GeoPackage or MapInfo and will be saved as archives into the `data` within this repository.
+The file output formats can be ESRI Shapefile, GeoJSON, CSV, GeoPackage, MapInfo, KML, FlatGeobuf, or PostgreSQL dump and will be saved as archives into the `data` within this repository.
 
 ## Output
 
