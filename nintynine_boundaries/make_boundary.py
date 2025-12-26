@@ -2,7 +2,7 @@ import logging
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from geopandas import GeoDataFrame, read_file
 from osm2geojson import json2geojson, overpass_call
@@ -10,6 +10,7 @@ from osm2geojson import json2geojson, overpass_call
 from nintynine_boundaries.utils import (
     clean_data_dir,
     make_overpass_query,
+    make_overpass_query_fallback,
     setup_custom_logger,
     to_files,
 )
@@ -96,6 +97,13 @@ def main() -> None:
 
             overpass_query: str = make_overpass_query(alpha2, current_admin_level, parent_admin_level=2)
             data: Dict[str, Any] = json2geojson(overpass_call(overpass_query))
+
+            # If no results and admin level > 2, try fallback query using area-based search
+            if len(data["features"]) == 0 and current_admin_level > 2:
+                logger.info(f"No results from parent-child query, trying area-based fallback query for {alpha2} admin level {current_admin_level}...")
+                overpass_query = make_overpass_query_fallback(alpha2, current_admin_level)
+                data = json2geojson(overpass_call(overpass_query))
+
             if len(data["features"]) > 0:
 
                 logger.info(f"overpass returned {len(data['features'])} features")
@@ -120,7 +128,7 @@ def main() -> None:
                     # we use the land data and intersect with the maritime
                     # administritive boundaries to obtain the coastal land boundaries
                     if land_data_dir:
-                        bbox: Tuple[float, float, float, float] = tuple(gdf_maritime.total_bounds)
+                        bbox = tuple(gdf_maritime.total_bounds)
                         gdf_osm_land: GeoDataFrame = read_file(
                             land_data_dir,
                             bbox=bbox,

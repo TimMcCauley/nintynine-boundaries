@@ -6,7 +6,7 @@
 
 <img width="920" alt="Indonesia Maritime and Land Boundaries" src="https://user-images.githubusercontent.com/10322094/169665541-701d6de6-7bf9-4e8b-b098-c5a17206eb0b.png">
 
-A simple command line utility to generate administrative boundaries from [OpenStreetMap](http://openstreetmap.org) via [Overpass](http://overpass-api.de/) and [OSM Land Polygons](https://osmdata.openstreetmap.de/data/land-polygons.html).
+A simple command line utility to generate administrative boundary polygons from [OpenStreetMap](http://openstreetmap.org) via [Overpass](http://overpass-api.de/) and [OSM Land Polygons](https://osmdata.openstreetmap.de/data/land-polygons.html).
 
 ## Features
 

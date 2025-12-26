@@ -3,7 +3,7 @@ import warnings
 from logging import DEBUG, INFO, Formatter, Logger, StreamHandler, getLogger
 from pathlib import Path
 from shutil import rmtree
-from typing import List, Tuple, TypedDict
+from typing import List, Tuple, TypedDict, Union
 from zipfile import ZIP_DEFLATED, ZipFile
 
 warnings.simplefilter(action="ignore", category=UserWarning)
@@ -58,12 +58,12 @@ def setup_custom_logger(name: str, debug: bool) -> Logger:
     return logger
 
 
-def zipdir(path: str, ziph: ZipFile) -> None:
+def zipdir(path: Union[str, Path], ziph: ZipFile) -> None:
     """Zips a directory
 
     Parameters
     ----------
-    path : str
+    path : Union[str, Path]
         the path to the directory to zip
     ziph : ZipFile
         zip file handler
@@ -95,10 +95,6 @@ def gpd_to_file(driver: str, p: Path, filename: str, gdf: GeoDataFrame) -> None:
 
     local_file: Path = folder / f"{filename}.{driver.lower().replace(' ', '')}"
     zipped_file: Path = p / f"{filename}.{driver.lower().replace(' ', '')}.zip"
-
-    # Drop tags column to avoid truncation warnings and reduce file size
-    if "tags" in gdf.columns:
-        gdf = gdf.drop(columns=["tags"])
 
     if driver == "CSV":
         DataFrame(gdf.assign(geometry=gdf["geometry"].apply(lambda param: param.wkt))).to_csv(local_file)
@@ -222,6 +218,42 @@ def make_overpass_query(alpha2: str, admin_level: int, parent_admin_level: int =
         relation["ISO3166-1"="{alpha2}"]["admin_level"="{parent_admin_level}"]["boundary"="administrative"]->.country;
         (
           relation(r.country)["boundary"="administrative"]["admin_level"="{admin_level}"];
+        );
+        (._;>;);
+        out;
+        """
+    else:
+        raise ValueError(f"Admin level {admin_level} is not supported.")
+
+
+def make_overpass_query_fallback(alpha2: str, admin_level: int) -> str:
+    """Returns a fallback overpass query using area-based search instead of parent-child relationships
+
+    This fallback query searches for all administrative boundaries of a given level within
+    the country's area, which is useful when parent-child relationships aren't properly tagged.
+
+    Parameters
+    ----------
+    alpha2 : str
+        ISO 3166-1 alpha-2 country code
+    admin_level : int
+        the administrative level to query
+
+    Raises
+    ------
+    ValueError
+        If admin_level is not supported
+    """
+
+    if admin_level == 2:
+        return make_overpass_query(alpha2, admin_level)
+    elif admin_level > 2:
+        # Area-based query for higher admin levels (fallback)
+        return f"""
+        [timeout:600][out:json];
+        area["ISO3166-1"="{alpha2}"]["admin_level"="2"]->.country;
+        (
+          relation(area.country)["boundary"="administrative"]["admin_level"="{admin_level}"];
         );
         (._;>;);
         out;
