@@ -43,5 +43,6 @@ debugpy*.log
 pydevd*.log
 nodeLanguageServer/**
 nodeLanguageServer.*/**
-dist/**
+dist
+.claude
 MISC.md
