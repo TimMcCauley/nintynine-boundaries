@@ -17,6 +17,7 @@ A simple command line utility to generate administrative boundary polygons from 
 - Uses OpenStreetMap data via Overpass API
 - High-quality land boundary generation with OSM land polygons
 - Optional data directory cleaning for incremental processing
+- Automatic filtering of neighboring country boundaries (50% overlap threshold for admin levels 3+)
 
 ## Installation
 
@@ -149,13 +150,23 @@ The file output formats can be ESRI Shapefile, GeoJSON, CSV, GeoPackage, MapInfo
 Generated files are saved as ZIP archives in the `data` folder with the following structure:
 
 ### Admin Level 2 (Country-level)
-- `data/2/{country_code}/{country_code}_{level}.{format}.zip` - Maritime boundaries
-- `data/2/{country_code}/{country_code}_{level}_land.{format}.zip` - Land boundaries (if `--land_data_dir` is provided)
+- `data/2/{country_code}/{country_code}_{level}.{format}.zip` - Boundaries without land intersection
+- `data/2/{country_code}/{country_code}_{level}_land.{format}.zip` - Boundaries intersected with OSM land polygons (if `--land_data_dir` is provided)
 
 ### Admin Levels 3+ (Sub-national)
 Each administrative feature is saved in its own directory:
-- `data/2/{country_code}/{level}/{feature_name}/{feature_name}.{format}.zip` - Maritime boundaries
-- `data/2/{country_code}/{level}/{feature_name}/{feature_name}_land.{format}.zip` - Land boundaries
+- `data/2/{country_code}/{level}/{feature_name}/{feature_name}.{format}.zip` - Boundaries without land intersection
+- `data/2/{country_code}/{level}/{feature_name}/{feature_name}_land.{format}.zip` - Boundaries intersected with OSM land polygons
+
+### Boundary Types Explained
+
+**Files without `_land` suffix** contain the administrative boundaries as returned directly from the OpenStreetMap query. For admin level 2 (countries), these typically include territorial waters and maritime zones. For higher admin levels (3+), these boundaries usually represent land-based administrative divisions but may occasionally include small maritime areas if defined in OSM.
+
+**Files with `_land` suffix** contain boundaries that have been intersected with OSM land polygons. This intersection process:
+- Creates precise coastline boundaries by clipping to actual land areas
+- Removes maritime/water portions from the administrative boundaries
+- Produces detailed shoreline geometry from the high-resolution OSM land polygon dataset
+- For landlocked administrative regions, results in identical geometries to the non-land version
 
 Each archive contains the boundary data in the requested format with attributes including:
 - `id`: OSM relation ID
@@ -163,12 +174,27 @@ Each archive contains the boundary data in the requested format with attributes 
 - `geometry`: Boundary geometry
 - Additional OSM metadata
 
+## Overlap Filtering
+
+To prevent neighboring countries' administrative regions from being included in results, the tool automatically filters admin level 3+ features based on their spatial overlap with the parent country boundary (admin level 2).
+
+**How it works:**
+- Admin level 2 (country) boundaries are saved without filtering
+- Admin levels 3 and higher are filtered to only include features with ≥50% overlap with the country boundary
+- This filtering is applied to both maritime and land boundaries
+- Features from neighboring countries that share borders are automatically excluded
+
+**Example:** When querying Germany for admin level 3 (states), any Dutch or Belgian administrative regions that might appear in the Overpass results will be automatically filtered out if they have less than 50% overlap with Germany's boundary.
+
+This ensures that only administrative regions that genuinely belong to the queried country are included in the output, while still capturing legitimate cross-border regions if they exist.
+
 ## Known Limitations
 
 - Land boundary generation for countries with large territories (US, Canada, France, Russia) can take 30-45 minutes and require up to 8GB of memory
 - Processing higher admin levels (3+) with land boundaries can be time-intensive for regions with many features
 - Requires active internet connection to query Overpass API
 - Admin level meanings vary by country - refer to the [OSM documentation](https://wiki.openstreetmap.org/wiki/Tag:boundary%3Dadministrative#admin_level=*_Country_specific_values) for country-specific details
+- **Shapefile format limitations:** The tags field will be truncated to 254 characters when exporting to ESRI Shapefile format due to the DBF file format's field length restrictions. For complete tag data, use GeoJSON, GeoPackage, or FlatGeobuf formats instead.
 
 ## Troubleshooting
 

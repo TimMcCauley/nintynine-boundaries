@@ -9,11 +9,55 @@ from osm2geojson import json2geojson, overpass_call
 
 from nintynine_boundaries.utils import (
     clean_data_dir,
+    filter_by_overlap,
     make_overpass_query,
     make_overpass_query_fallback,
     setup_custom_logger,
     to_files,
 )
+
+
+def apply_overlap_filter(
+    gdf: GeoDataFrame,
+    current_admin_level: int,
+    gdf_country_reference: Optional[GeoDataFrame],
+    logger: logging.Logger,
+    boundary_type: str = "maritime"
+) -> GeoDataFrame:
+    """Apply 50% overlap filtering to admin level 3+ features.
+
+    Parameters
+    ----------
+    gdf : GeoDataFrame
+        The GeoDataFrame to filter
+    current_admin_level : int
+        Current administrative level being processed
+    gdf_country_reference : Optional[GeoDataFrame]
+        Reference country boundary (admin level 2)
+    logger : logging.Logger
+        Logger instance for logging filter results
+    boundary_type : str
+        Type of boundary being filtered ("maritime" or "land") for logging
+
+    Returns
+    -------
+    GeoDataFrame
+        Filtered GeoDataFrame or original if filtering not applicable
+    """
+    if current_admin_level > 2 and gdf_country_reference is not None:
+        features_before = len(gdf)
+        gdf_filtered = filter_by_overlap(gdf, gdf_country_reference, min_overlap_ratio=0.5)
+        features_after = len(gdf_filtered)
+
+        if features_before > features_after:
+            logger.info(
+                f"Filtered out {features_before - features_after} {boundary_type} features "
+                f"with <50% overlap (kept {features_after}/{features_before})"
+            )
+
+        return gdf_filtered
+
+    return gdf
 
 
 def cmdline_args() -> Namespace:
@@ -90,6 +134,9 @@ def main() -> None:
         sys.exit(1)
 
     for alpha2 in alpha2_list:
+        # Store the admin level 2 boundary for overlap filtering
+        gdf_country_reference: Optional[GeoDataFrame] = None
+
         # Process admin levels from 2 to max_admin_level
         for current_admin_level in range(2, max_admin_level + 1):
 
@@ -113,6 +160,13 @@ def main() -> None:
                 gdf_maritime = gdf_maritime[gdf_maritime["geometry"].apply(lambda x: x.type != "Point")].explode(
                     index_parts=False
                 )
+
+                # Store admin level 2 boundary as reference for filtering higher levels
+                if current_admin_level == 2:
+                    gdf_country_reference = gdf_maritime.copy()
+
+                # Filter admin level 3+ by 50% overlap with country boundary to exclude neighboring countries
+                gdf_maritime = apply_overlap_filter(gdf_maritime, current_admin_level, gdf_country_reference, logger, "maritime")
 
                 if not set(gdf_maritime.geom_type).isdisjoint(("MultiPolygon", "Polygon")):
                     to_files(
@@ -161,6 +215,9 @@ def main() -> None:
                             gdf_intersection: GeoDataFrame = GeoDataFrame(land_features, crs="epsg:4326")
 
                             logger.info(f"Overlaying land polygons complete - processed {len(land_features)} features")
+
+                            # Filter land boundaries by 50% overlap for admin level 3+ as well
+                            gdf_intersection = apply_overlap_filter(gdf_intersection, current_admin_level, gdf_country_reference, logger, "land")
 
                             to_files(
                                 current_admin_level,

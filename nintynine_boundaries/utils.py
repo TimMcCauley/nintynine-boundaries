@@ -8,8 +8,11 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 warnings.simplefilter(action="ignore", category=UserWarning)
 warnings.simplefilter(action="ignore", category=FutureWarning)
+# warnings.filterwarnings("ignore", message=".*of field tags has been truncated to 254 characters*")
+
 from geopandas import GeoDataFrame
 from pandas import DataFrame
+from shapely.geometry import Polygon, MultiPolygon
 
 driver_lookup: dict[str, str] = {
     "GPKG": "GPKG",
@@ -123,6 +126,34 @@ def clean_data_dir() -> None:
         rmtree(data_dir)
 
 
+def get_feature_filename(row, idx) -> str:
+    """Generates a clean filename for a feature based on its tags and relation ID
+
+    Parameters
+    ----------
+    row : Series
+        A row from the GeoDataFrame containing feature data
+    idx : int
+        The index of the row (used as fallback for ID)
+
+    Returns
+    -------
+    str
+        A cleaned filename string
+    """
+    feature_name = None
+
+    if "tags" in row and isinstance(row["tags"], dict):
+        feature_name = row["tags"].get("int_name") or row["tags"].get("name")
+
+    relation_id = f"relation_{row.get('id', idx)}"
+
+    feature_name_clean = str(f"{relation_id}_{feature_name}").lower().replace(" ", "_")
+    feature_name_clean = "".join(c if c.isalnum() or c == "_" else "_" for c in feature_name_clean)
+
+    return feature_name_clean
+
+
 def to_files(
     admin_level: int,
     country: str,
@@ -144,15 +175,16 @@ def to_files(
         whether we are dealing with martime boundaries or not
     """
 
-    if admin_level == 2:
+    if admin_level == 2 and len(gdf) == 1:
         p: Path = Path(__file__).absolute().parent / "data" / str(admin_level) / country
         p.mkdir(parents=True, exist_ok=True)
 
+        feature_name_clean = get_feature_filename(gdf.iloc[0], 0)
         filename: str
         if include_maritime:
-            filename = f"{country}_{admin_level}"
+            filename = feature_name_clean
         else:
-            filename = f"{country}_{admin_level}_land"
+            filename = f"{feature_name_clean}_land"
 
         for driver in formats:
             gpd_to_file(driver_lookup[driver.upper()], p, filename, gdf)
@@ -162,15 +194,7 @@ def to_files(
         # For higher admin levels, create separate files for each feature
         # Structure: data/2/country/admin_level/feature_name/
         for idx, row in gdf.iterrows():
-            feature_name = None
-
-            if "tags" in row and isinstance(row["tags"], dict):
-                feature_name = f"{row["tags"].get("name")}"
-
-            feature_id = f"feature_{row.get('id', idx)}"
-
-            feature_name_clean = str(f"{feature_id}_{feature_name}").lower().replace(" ", "_")
-            feature_name_clean = "".join(c if c.isalnum() or c == "_" else "_" for c in feature_name_clean)
+            feature_name_clean = get_feature_filename(row, idx)
 
             p: Path = Path(__file__).absolute().parent / "data" / "2" / country / str(admin_level) / feature_name_clean
 
@@ -260,3 +284,50 @@ def make_overpass_query_fallback(alpha2: str, admin_level: int) -> str:
         """
     else:
         raise ValueError(f"Admin level {admin_level} is not supported.")
+
+
+def filter_by_overlap(gdf: GeoDataFrame, reference_gdf: GeoDataFrame, min_overlap_ratio: float = 0.5) -> GeoDataFrame:
+    """Filters a GeoDataFrame to only include features that have at least min_overlap_ratio
+    overlap with the reference geometry (typically the parent country boundary).
+
+    This prevents neighboring countries' administrative regions from being included in results.
+
+    Parameters
+    ----------
+    gdf : GeoDataFrame
+        The GeoDataFrame to filter (e.g., admin level 3+ features)
+    reference_gdf : GeoDataFrame
+        The reference GeoDataFrame (e.g., admin level 2 country boundary)
+    min_overlap_ratio : float
+        Minimum ratio of overlap required (default: 0.5 for 50%)
+
+    Returns
+    -------
+    GeoDataFrame
+        Filtered GeoDataFrame containing only features with sufficient overlap
+    """
+    if reference_gdf.empty or gdf.empty:
+        return gdf
+
+    # Dissolve reference geometry into a single geometry for comparison
+    reference_geom = reference_gdf.geometry.union_all()
+
+    # Filter features based on overlap ratio
+    def calculate_overlap_ratio(geometry):
+        try:
+            intersection = geometry.intersection(reference_geom)
+            if intersection.is_empty:
+                return 0.0
+            overlap_ratio = intersection.area / geometry.area
+            return overlap_ratio
+        except Exception:
+            # If calculation fails, include the feature to be safe
+            return 1.0
+
+    gdf['overlap_ratio'] = gdf.geometry.apply(calculate_overlap_ratio)
+    filtered_gdf = gdf[gdf['overlap_ratio'] >= min_overlap_ratio].copy()
+
+    # Remove the temporary overlap_ratio column
+    filtered_gdf = filtered_gdf.drop(columns=['overlap_ratio'])
+
+    return filtered_gdf
