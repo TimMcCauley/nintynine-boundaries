@@ -102,6 +102,13 @@ def cmdline_args() -> Namespace:
     optional.add_argument("--clean", action="store_true", help="Clean the data directory before processing")
     optional.add_argument("--no-clean", dest="clean", action="store_false", help="Skip cleaning the data directory")
     optional.set_defaults(clean=True)
+    optional.add_argument(
+        "-o",
+        "--output_path",
+        type=Path,
+        help="Output directory path for generated boundary files",
+        default=Path(__file__).absolute().parent / "data",
+    )
 
     return parser.parse_args()
 
@@ -121,12 +128,13 @@ def main() -> None:
         formats: List[str] = args.formats
         debug: bool = args.debug
         clean: bool = args.clean
+        output_path: Path = args.output_path
         setup_custom_logger("du", debug)
         logger: logging.Logger = logging.getLogger("du")
 
         # Clean data directory before processing if requested
         if clean:
-            clean_data_dir()
+            clean_data_dir(output_path)
             logger.info("Cleaned data directory")
 
     except:
@@ -175,6 +183,7 @@ def main() -> None:
                         gdf_maritime,
                         formats,
                         include_maritime=True,
+                        output_path=output_path,
                     )
 
                     logger.info(f"saved {alpha2} admin level {current_admin_level} maritime boundary")
@@ -225,6 +234,7 @@ def main() -> None:
                                 gdf_intersection,
                                 formats,
                                 include_maritime=False,
+                                output_path=output_path,
                             )
 
                             logger.info(f"saved {alpha2} admin level {current_admin_level} land boundary\n")

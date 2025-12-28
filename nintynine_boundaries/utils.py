@@ -3,7 +3,7 @@ import warnings
 from logging import DEBUG, INFO, Formatter, Logger, StreamHandler, getLogger
 from pathlib import Path
 from shutil import rmtree
-from typing import List, Tuple, TypedDict, Union
+from typing import List, Optional, Tuple, TypedDict, Union
 from zipfile import ZIP_DEFLATED, ZipFile
 
 warnings.simplefilter(action="ignore", category=UserWarning)
@@ -119,9 +119,18 @@ def gpd_to_file(driver: str, p: Path, filename: str, gdf: GeoDataFrame) -> None:
     rmtree(folder)
 
 
-def clean_data_dir() -> None:
-    """Removes the data directory if it exists to ensure a clean run"""
-    data_dir: Path = Path(__file__).absolute().parent / "data"
+def clean_data_dir(output_path: Optional[Path] = None) -> None:
+    """Removes the data directory if it exists to ensure a clean run
+
+    Parameters
+    ----------
+    output_path : Path, optional
+        The output directory path. If None, uses default path.
+    """
+    if output_path is None:
+        data_dir: Path = Path(__file__).absolute().parent / "data"
+    else:
+        data_dir = output_path
     if data_dir.exists():
         rmtree(data_dir)
 
@@ -160,6 +169,7 @@ def to_files(
     gdf: GeoDataFrame,
     formats: List[str],
     include_maritime: bool,
+    output_path: Path,
 ) -> None:
     """Helper function looping over all drivers
 
@@ -173,13 +183,16 @@ def to_files(
         the geodataframe holding the data
     include_maritime : bool
         whether we are dealing with martime boundaries or not
+    output_path : Path
+        the output directory path
     """
 
     if admin_level == 2 and len(gdf) == 1:
-        p: Path = Path(__file__).absolute().parent / "data" / str(admin_level) / country
+        feature_name_clean = get_feature_filename(gdf.iloc[0], 0)
+
+        p: Path = output_path / country / str(admin_level) / feature_name_clean
         p.mkdir(parents=True, exist_ok=True)
 
-        feature_name_clean = get_feature_filename(gdf.iloc[0], 0)
         filename: str
         if include_maritime:
             filename = feature_name_clean
@@ -192,11 +205,11 @@ def to_files(
     else:
 
         # For higher admin levels, create separate files for each feature
-        # Structure: data/2/country/admin_level/feature_name/
+        # Structure: country/admin_level/feature_name/
         for idx, row in gdf.iterrows():
             feature_name_clean = get_feature_filename(row, idx)
 
-            p: Path = Path(__file__).absolute().parent / "data" / "2" / country / str(admin_level) / feature_name_clean
+            p: Path = output_path / country / str(admin_level) / feature_name_clean
 
             p.mkdir(parents=True, exist_ok=True)
 

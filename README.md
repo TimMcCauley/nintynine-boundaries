@@ -55,7 +55,7 @@ eval $(poetry env activate)
 ```sh
 make_boundary --help
 usage: make_boundary [-h] -a ALPHA2 [ALPHA2 ...] -f FORMATS [FORMATS ...] [-l MAX_ADMIN_LEVEL] [-d LAND_DATA_DIR]
-                     [--debug] [--no-debug] [--clean] [--no-clean]
+                     [--debug] [--no-debug] [--clean] [--no-clean] [-o OUTPUT_PATH]
 
 required arguments:
   -a ALPHA2 [ALPHA2 ...], --alpha2 ALPHA2 [ALPHA2 ...]
@@ -70,6 +70,8 @@ optional arguments:
   -d LAND_DATA_DIR, --land_data_dir LAND_DATA_DIR
                         Path to the OSM land data polygons folder, read more and download from
                         https://osmdata.openstreetmap.de/data/land-polygons.html
+  -o OUTPUT_PATH, --output_path OUTPUT_PATH
+                        Output directory path for generated boundary files (default: data/)
   --debug               Enable debug logging
   --no-debug            Disable debug logging (default)
   --clean               Clean the data directory before processing (default)
@@ -100,9 +102,9 @@ make_boundary --alpha2 FR CA --formats csv --land_data_dir /path/to/land-polygon
 
 ### Multi-Level Administrative Boundaries
 
-Generate administrative boundaries up to level 6 (e.g., municipalities, districts). See the [OSM admin level documentation](https://wiki.openstreetmap.org/wiki/Tag:boundary%3Dadministrative#admin_level=*_Country_specific_values) for country-specific admin level meanings.
+Generate administrative boundaries up to level 11 (e.g., municipalities, districts). See the [OSM admin level documentation](https://wiki.openstreetmap.org/wiki/Tag:boundary%3Dadministrative#admin_level=*_Country_specific_values) for country-specific admin level meanings.
 
-**Important:** Not all admin levels exist for every country. The available levels and their meanings vary by country - consult the [OSM admin level documentation](https://wiki.openstreetmap.org/wiki/Tag:boundary%3Dadministrative#admin_level=*_Country_specific_values) to understand which levels are defined for your region. If you require support for admin levels beyond 6, please submit a pull request.
+**Important:** Not all admin levels exist for every country. The available levels and their meanings vary by country - consult the [OSM admin level documentation](https://wiki.openstreetmap.org/wiki/Tag:boundary%3Dadministrative#admin_level=*_Country_specific_values) to understand which levels are defined for your region.
 
 #### Generate admin levels 2-6 for the Netherlands with land boundaries:
 
@@ -131,6 +133,14 @@ make_boundary --alpha2 ES --formats geojson gpkg --max_admin_level 4
 make_boundary --alpha2 BE LU --formats geojson --max_admin_level 6 --land_data_dir /path/to/land-polygons-split-4326
 ```
 
+### Custom Output Directory
+
+Specify a custom output directory instead of the default `data/` folder:
+
+```bash
+make_boundary --alpha2 DE --formats geojson --output_path /path/to/custom/output
+```
+
 ### Incremental Processing
 
 Skip cleaning the data directory to add new data without removing existing files:
@@ -147,16 +157,17 @@ The file output formats can be ESRI Shapefile, GeoJSON, CSV, GeoPackage, MapInfo
 
 ## Output
 
-Generated files are saved as ZIP archives in the `data` folder with the following structure:
+Generated files are saved as ZIP archives in the `data` folder (or custom output directory if specified) with the following structure:
 
-### Admin Level 2 (Country-level)
-- `data/2/{country_code}/{country_code}_{level}.{format}.zip` - Boundaries without land intersection
-- `data/2/{country_code}/{country_code}_{level}_land.{format}.zip` - Boundaries intersected with OSM land polygons (if `--land_data_dir` is provided)
-
-### Admin Levels 3+ (Sub-national)
+### All Admin Levels
 Each administrative feature is saved in its own directory:
-- `data/2/{country_code}/{level}/{feature_name}/{feature_name}.{format}.zip` - Boundaries without land intersection
-- `data/2/{country_code}/{level}/{feature_name}/{feature_name}_land.{format}.zip` - Boundaries intersected with OSM land polygons
+- `{output_path}/{country_code}/{level}/{feature_name}/{feature_name}.{format}.zip` - Boundaries without land intersection
+- `{output_path}/{country_code}/{level}/{feature_name}/{feature_name}_land.{format}.zip` - Boundaries intersected with OSM land polygons (if `--land_data_dir` is provided)
+
+For example, with default settings:
+- Admin level 2: `data/DE/2/relation_51477_deutschland/relation_51477_deutschland.geojson.zip`
+- Admin level 3: `data/DE/3/relation_62761_bayern/relation_62761_bayern.geojson.zip`
+- Admin level 4: `data/DE/4/relation_2145268_oberbayern/relation_2145268_oberbayern.geojson.zip`
 
 ### Boundary Types Explained
 
