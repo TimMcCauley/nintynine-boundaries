@@ -1,9 +1,11 @@
 import logging
 import sys
+import time
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import requests
 from geopandas import GeoDataFrame, read_file
 from osm2geojson import json2geojson, overpass_call
 
@@ -15,6 +17,63 @@ from nintynine_boundaries.utils import (
     setup_custom_logger,
     to_files,
 )
+
+
+def overpass_call_with_retry(
+    query: str,
+    max_retries: int = 3,
+    initial_delay: float = 5.0,
+    logger: Optional[logging.Logger] = None
+) -> Dict[str, Any]:
+    """Call Overpass API with retry logic and exponential backoff.
+
+    Parameters
+    ----------
+    query : str
+        The Overpass query string
+    max_retries : int
+        Maximum number of retry attempts (default: 3)
+    initial_delay : float
+        Initial delay in seconds before first retry (default: 5.0)
+    logger : Optional[logging.Logger]
+        Logger instance for logging retry attempts
+
+    Returns
+    -------
+    Dict[str, Any]
+        GeoJSON data from the Overpass API
+
+    Raises
+    ------
+    requests.exceptions.HTTPError
+        If all retry attempts fail
+    """
+    delay = initial_delay
+
+    for attempt in range(max_retries):
+        try:
+            result = overpass_call(query)
+            return json2geojson(result)
+        except requests.exceptions.HTTPError as e:
+            if attempt < max_retries - 1:
+                if logger:
+                    logger.warning(
+                        f"Overpass API error (attempt {attempt + 1}/{max_retries}): {e}. "
+                        f"Retrying in {delay:.1f} seconds..."
+                    )
+                time.sleep(delay)
+                delay *= 2  # Exponential backoff
+            else:
+                if logger:
+                    logger.error(f"Overpass API failed after {max_retries} attempts: {e}")
+                raise
+        except Exception as e:
+            if logger:
+                logger.error(f"Unexpected error during Overpass API call: {e}")
+            raise
+
+    # This should never be reached, but just in case
+    raise RuntimeError("Unexpected error in overpass_call_with_retry")
 
 
 def apply_overlap_filter(
@@ -151,13 +210,13 @@ def main() -> None:
             logger.info(f"processing {alpha2} admin level {current_admin_level}...")
 
             overpass_query: str = make_overpass_query(alpha2, current_admin_level, parent_admin_level=2)
-            data: Dict[str, Any] = json2geojson(overpass_call(overpass_query))
+            data: Dict[str, Any] = overpass_call_with_retry(overpass_query, logger=logger)
 
             # If no results and admin level > 2, try fallback query using area-based search
             if len(data["features"]) == 0 and current_admin_level > 2:
                 logger.info(f"No results from parent-child query, trying area-based fallback query for {alpha2} admin level {current_admin_level}...")
                 overpass_query = make_overpass_query_fallback(alpha2, current_admin_level)
-                data = json2geojson(overpass_call(overpass_query))
+                data = overpass_call_with_retry(overpass_query, logger=logger)
 
             if len(data["features"]) > 0:
 
