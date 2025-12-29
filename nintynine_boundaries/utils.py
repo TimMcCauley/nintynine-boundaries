@@ -153,7 +153,7 @@ def get_feature_filename(row, idx) -> str:
     feature_name = None
 
     if "tags" in row and isinstance(row["tags"], dict):
-        feature_name = row["tags"].get("int_name") or row["tags"].get("name")
+        feature_name = row["tags"].get("name:en") or row["tags"].get("int_name") or row["tags"].get("name")
 
     relation_id = f"relation_{row.get('id', idx)}"
 
