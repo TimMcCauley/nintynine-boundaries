@@ -187,40 +187,22 @@ def to_files(
         the output directory path
     """
 
-    if admin_level == 2 and len(gdf) == 1:
-        feature_name_clean = get_feature_filename(gdf.iloc[0], 0)
+    # Process each feature individually to ensure consistent folder naming
+    for position, (_, row) in enumerate(gdf.iterrows()):
+        feature_name_clean = get_feature_filename(row, position)
 
         p: Path = output_path / country / str(admin_level) / feature_name_clean
+
         p.mkdir(parents=True, exist_ok=True)
 
-        filename: str
-        if include_maritime:
-            filename = feature_name_clean
-        else:
-            filename = f"{feature_name_clean}_land"
+        filename = feature_name_clean
+        if not include_maritime:
+            filename = f"{filename}_land"
+
+        feature_gdf = GeoDataFrame([row], crs=gdf.crs)
 
         for driver in formats:
-            gpd_to_file(driver_lookup[driver.upper()], p, filename, gdf)
-
-    else:
-
-        # For higher admin levels, create separate files for each feature
-        # Structure: country/admin_level/feature_name/
-        for idx, row in gdf.iterrows():
-            feature_name_clean = get_feature_filename(row, idx)
-
-            p: Path = output_path / country / str(admin_level) / feature_name_clean
-
-            p.mkdir(parents=True, exist_ok=True)
-
-            filename = feature_name_clean
-            if not include_maritime:
-                filename = f"{filename}_land"
-
-            feature_gdf = GeoDataFrame([row], crs=gdf.crs)
-
-            for driver in formats:
-                gpd_to_file(driver_lookup[driver.upper()], p, filename, feature_gdf)
+            gpd_to_file(driver_lookup[driver.upper()], p, filename, feature_gdf)
 
 
 def make_overpass_query(alpha2: str, admin_level: int, parent_admin_level: int = 2) -> str:
