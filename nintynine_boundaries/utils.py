@@ -12,7 +12,6 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 from geopandas import GeoDataFrame
 from pandas import DataFrame
-from shapely.geometry import Polygon, MultiPolygon
 
 driver_lookup: dict[str, str] = {
     "GPKG": "GPKG",
@@ -319,10 +318,10 @@ def filter_by_overlap(gdf: GeoDataFrame, reference_gdf: GeoDataFrame, min_overla
             # If calculation fails, include the feature to be safe
             return 1.0
 
-    gdf['overlap_ratio'] = gdf.geometry.apply(calculate_overlap_ratio)
-    filtered_gdf = gdf[gdf['overlap_ratio'] >= min_overlap_ratio].copy()
+    gdf["overlap_ratio"] = gdf.geometry.apply(calculate_overlap_ratio)
+    filtered_gdf = gdf[gdf["overlap_ratio"] >= min_overlap_ratio].copy()
 
     # Remove the temporary overlap_ratio column
-    filtered_gdf = filtered_gdf.drop(columns=['overlap_ratio'])
+    filtered_gdf = filtered_gdf.drop(columns=["overlap_ratio"])
 
     return filtered_gdf

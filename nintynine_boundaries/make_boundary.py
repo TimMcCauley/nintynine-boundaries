@@ -160,7 +160,7 @@ def cmdline_args() -> Namespace:
     optional.set_defaults(debug=False)
     optional.add_argument("--clean", action="store_true", help="Clean the data directory before processing")
     optional.add_argument("--no-clean", dest="clean", action="store_false", help="Skip cleaning the data directory")
-    optional.set_defaults(clean=True)
+    optional.set_defaults(clean=False)
     optional.add_argument(
         "-o",
         "--output_path",
