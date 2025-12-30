@@ -20,10 +20,7 @@ from nintynine_boundaries.utils import (
 
 
 def overpass_call_with_retry(
-    query: str,
-    max_retries: int = 3,
-    initial_delay: float = 5.0,
-    logger: Optional[logging.Logger] = None
+    query: str, max_retries: int = 3, initial_delay: float = 5.0, logger: Optional[logging.Logger] = None
 ) -> Dict[str, Any]:
     """Call Overpass API with retry logic and exponential backoff.
 
@@ -81,7 +78,7 @@ def apply_overlap_filter(
     current_admin_level: int,
     gdf_country_reference: Optional[GeoDataFrame],
     logger: logging.Logger,
-    boundary_type: str = "maritime"
+    boundary_type: str = "maritime",
 ) -> GeoDataFrame:
     """Apply 50% overlap filtering to admin level 3+ features.
 
@@ -214,7 +211,9 @@ def main() -> None:
 
             # If no results and admin level > 2, try fallback query using area-based search
             if len(data["features"]) == 0 and current_admin_level > 2:
-                logger.info(f"No results from parent-child query, trying area-based fallback query for {alpha2} admin level {current_admin_level}...")
+                logger.info(
+                    f"No results from parent-child query, trying area-based fallback query for {alpha2} admin level {current_admin_level}..."
+                )
                 overpass_query = make_overpass_query_fallback(alpha2, current_admin_level)
                 data = overpass_call_with_retry(overpass_query, logger=logger)
 
@@ -233,7 +232,9 @@ def main() -> None:
                     gdf_country_reference = gdf_maritime.copy()
 
                 # Filter admin level 3+ by 50% overlap with country boundary to exclude neighboring countries
-                gdf_maritime = apply_overlap_filter(gdf_maritime, current_admin_level, gdf_country_reference, logger, "maritime")
+                gdf_maritime = apply_overlap_filter(
+                    gdf_maritime, current_admin_level, gdf_country_reference, logger, "maritime"
+                )
 
                 if not set(gdf_maritime.geom_type).isdisjoint(("MultiPolygon", "Polygon")):
                     to_files(
@@ -250,26 +251,45 @@ def main() -> None:
                     # we use the land data and intersect with the maritime
                     # administritive boundaries to obtain the coastal land boundaries
                     if land_data_dir:
+                        logger.debug(f"Processing land polygons for {alpha2} admin level {current_admin_level}...")
                         bbox = tuple(gdf_maritime.total_bounds)
+
+                        logger.debug(f"Reading land polygons from {land_data_dir}...")
                         gdf_osm_land: GeoDataFrame = read_file(
                             land_data_dir,
                             bbox=bbox,
                         )
+                        logger.debug(f"Loaded {len(gdf_osm_land)} land polygon features within bounding box")
 
                         # Process each maritime feature individually to preserve attributes
                         land_features: List[Dict[str, Any]] = []
+                        total_maritime_features = len(gdf_maritime)
+                        logger.debug(f"Intersecting {total_maritime_features} maritime features with land polygons...")
 
-                        for _, maritime_row in gdf_maritime.iterrows():
+                        for idx, (_, maritime_row) in enumerate(gdf_maritime.iterrows(), 1):
+                            logger.debug(f"Processing maritime feature {idx}/{total_maritime_features}")
+
                             # Create a GeoDataFrame for this single maritime feature
                             gdf_single_maritime: GeoDataFrame = GeoDataFrame([maritime_row], crs=gdf_maritime.crs)
 
-                            # Intersect with land polygons
-                            gdf_single_intersection: GeoDataFrame = gdf_osm_land.overlay(gdf_single_maritime, how="intersection")
+                            # Spatially filter land polygons first using spatial index
+                            # This is much faster than .cx and reduces polygons in the expensive overlay operation
+                            maritime_geom = maritime_row.geometry
+                            # Query spatial index to find candidate land polygons
+                            candidate_indices = gdf_osm_land.sindex.query(maritime_geom, predicate="intersects")
+                            gdf_land_subset = gdf_osm_land.iloc[candidate_indices]
+
+                            # Intersect with the filtered land polygons
+                            gdf_single_intersection: GeoDataFrame = gdf_land_subset.overlay(
+                                gdf_single_maritime, how="intersection"
+                            )
 
                             if not gdf_single_intersection.empty:
                                 # Dissolve this feature's land polygons into one
                                 gdf_single_intersection["dissolve_column"] = 0
-                                gdf_single_dissolved: GeoDataFrame = gdf_single_intersection.dissolve(by="dissolve_column")
+                                gdf_single_dissolved: GeoDataFrame = gdf_single_intersection.dissolve(
+                                    by="dissolve_column"
+                                )
 
                                 # Extract the dissolved geometry
                                 dissolved_geom = gdf_single_dissolved.geometry.iloc[0]
@@ -285,7 +305,9 @@ def main() -> None:
                             logger.info(f"Overlaying land polygons complete - processed {len(land_features)} features")
 
                             # Filter land boundaries by 50% overlap for admin level 3+ as well
-                            gdf_intersection = apply_overlap_filter(gdf_intersection, current_admin_level, gdf_country_reference, logger, "land")
+                            gdf_intersection = apply_overlap_filter(
+                                gdf_intersection, current_admin_level, gdf_country_reference, logger, "land"
+                            )
 
                             to_files(
                                 current_admin_level,
@@ -298,7 +320,9 @@ def main() -> None:
 
                             logger.info(f"saved {alpha2} admin level {current_admin_level} land boundary\n")
                         else:
-                            logger.warning(f"No land intersection features found for {alpha2} admin level {current_admin_level}")
+                            logger.warning(
+                                f"No land intersection features found for {alpha2} admin level {current_admin_level}"
+                            )
 
 
 if __name__ == "__main__":
