@@ -8,7 +8,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 warnings.simplefilter(action="ignore", category=UserWarning)
 warnings.simplefilter(action="ignore", category=FutureWarning)
-# warnings.filterwarnings("ignore", message=".*of field tags has been truncated to 254 characters*")
+warnings.filterwarnings("ignore", message=".*of field tags has been truncated to 254 characters*")
 
 from geopandas import GeoDataFrame
 from pandas import DataFrame
@@ -185,10 +185,60 @@ def to_files(
     output_path : Path
         the output directory path
     """
+    import logging
+
+    logger = logging.getLogger("du")
+
+    boundary_type = "maritime" if include_maritime else "land"
+    logger.debug(f"Saving {len(gdf)} {boundary_type} features for {country} admin level {admin_level}")
+
+    # Log geometry types present
+    geom_types = gdf.geom_type.value_counts().to_dict()
+    logger.debug(f"Geometry types: {geom_types}")
+
+    # Union all polygons grouped by relation_id (id column)
+    if "id" in gdf.columns and len(gdf) > 0:
+        logger.debug(f"Unioning {len(gdf)} polygons grouped by relation_id")
+
+        # Group by relation_id and union geometries within each group
+        unioned_features = []
+        unique_ids = gdf["id"].unique()
+
+        logger.debug(f"Found {len(unique_ids)} unique relation IDs")
+
+        for relation_id in unique_ids:
+            # Get all rows for this relation_id
+            relation_rows = gdf[gdf["id"] == relation_id]
+
+            # Get the first row to preserve attributes
+            first_row = relation_rows.iloc[0].to_dict()
+
+            # Union all geometries for this relation_id
+            unioned_geometry = relation_rows.geometry.union_all()
+
+            # Create a feature with unioned geometry and original attributes
+            first_row["geometry"] = unioned_geometry
+            unioned_features.append(first_row)
+
+            logger.debug(
+                f"Relation {relation_id}: unioned {len(relation_rows)} polygons into {unioned_geometry.geom_type}"
+            )
+
+        # Create new GeoDataFrame with unioned features
+        gdf = GeoDataFrame(unioned_features, crs=gdf.crs)
+
+        logger.debug(f"Unioned {len(gdf)} relation(s) at admin level {admin_level}")
 
     # Process each feature individually to ensure consistent folder naming
     for position, (_, row) in enumerate(gdf.iterrows()):
         feature_name_clean = get_feature_filename(row, position)
+
+        # Log details about the feature being saved
+        relation_id = row.get("id", position)
+        geom_type = row.geometry.geom_type if hasattr(row.geometry, "geom_type") else "Unknown"
+        logger.debug(
+            f"Saving feature {position + 1}/{len(gdf)}: relation_id={relation_id}, name={feature_name_clean}, geom_type={geom_type}"
+        )
 
         p: Path = output_path / country / str(admin_level) / feature_name_clean
 

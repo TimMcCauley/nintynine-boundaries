@@ -222,19 +222,23 @@ def main() -> None:
                 logger.info(f"overpass returned {len(data['features'])} features")
 
                 gdf_maritime: GeoDataFrame = GeoDataFrame.from_features(features=data, crs="epsg:4326")
+                logger.debug(f"Before filtering: {len(gdf_maritime)} features, geometry types: {gdf_maritime.geom_type.value_counts().to_dict()}")
+
                 # we only want to keep polygons
-                gdf_maritime = gdf_maritime[gdf_maritime["geometry"].apply(lambda x: x.type != "Point")].explode(
-                    index_parts=False
-                )
+                gdf_maritime = gdf_maritime[gdf_maritime["geometry"].apply(lambda x: x.type != "Point")]
+                logger.debug(f"After removing points: {len(gdf_maritime)} features")
+
+                gdf_maritime = gdf_maritime.explode(index_parts=False)
+                logger.info(f"After explode: {len(gdf_maritime)} polygon features, geometry types: {gdf_maritime.geom_type.value_counts().to_dict()}")
 
                 # Store admin level 2 boundary as reference for filtering higher levels
                 if current_admin_level == 2:
                     gdf_country_reference = gdf_maritime.copy()
 
                 # Filter admin level 3+ by 50% overlap with country boundary to exclude neighboring countries
-                gdf_maritime = apply_overlap_filter(
-                    gdf_maritime, current_admin_level, gdf_country_reference, logger, "maritime"
-                )
+                # gdf_maritime = apply_overlap_filter(
+                #    gdf_maritime, current_admin_level, gdf_country_reference, logger, "maritime"
+                #
 
                 if not set(gdf_maritime.geom_type).isdisjoint(("MultiPolygon", "Polygon")):
                     to_files(
