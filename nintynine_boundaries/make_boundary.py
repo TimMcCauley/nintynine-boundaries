@@ -272,8 +272,6 @@ def main() -> None:
                             # Create a GeoDataFrame for this single maritime feature
                             gdf_single_maritime: GeoDataFrame = GeoDataFrame([maritime_row], crs=gdf_maritime.crs)
 
-                            # Spatially filter land polygons first using spatial index
-                            # This is much faster than .cx and reduces polygons in the expensive overlay operation
                             maritime_geom = maritime_row.geometry
                             # Query spatial index to find candidate land polygons
                             candidate_indices = gdf_osm_land.sindex.query(maritime_geom, predicate="intersects")
