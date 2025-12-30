@@ -206,6 +206,7 @@ This ensures that only administrative regions that genuinely belong to the queri
 - Requires active internet connection to query Overpass API
 - Admin level meanings vary by country - refer to the [OSM documentation](https://wiki.openstreetmap.org/wiki/Tag:boundary%3Dadministrative#admin_level=*_Country_specific_values) for country-specific details
 - **Shapefile format limitations:** The tags field will be truncated to 254 characters when exporting to ESRI Shapefile format due to the DBF file format's field length restrictions. For complete tag data, use GeoJSON, GeoPackage, or FlatGeobuf formats instead.
+- **Large GeoJSON files in QGIS:** Very large GeoJSON files may not open properly in QGIS. For large datasets, use alternative formats such as GeoPackage (GPKG), FlatGeobuf (FGB), or ESRI Shapefile instead.
 
 ## Troubleshooting
 
