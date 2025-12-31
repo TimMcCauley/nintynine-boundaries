@@ -134,6 +134,35 @@ def clean_data_dir(output_path: Optional[Path] = None) -> None:
         rmtree(data_dir)
 
 
+def get_geometry_coordinate_count(geom) -> int:
+    """Calculates the total number of coordinates in a geometry
+
+    Parameters
+    ----------
+    geom : shapely.geometry
+        A shapely geometry object
+
+    Returns
+    -------
+    int
+        Total number of coordinates in the geometry
+    """
+    coord_count = 0
+    if hasattr(geom, "exterior"):
+        # Single polygon
+        coord_count = len(geom.exterior.coords)
+        if hasattr(geom, "interiors"):
+            coord_count += sum(len(interior.coords) for interior in geom.interiors)
+    elif hasattr(geom, "geoms"):
+        # MultiPolygon or GeometryCollection
+        for g in geom.geoms:
+            if hasattr(g, "exterior"):
+                coord_count += len(g.exterior.coords)
+                if hasattr(g, "interiors"):
+                    coord_count += sum(len(interior.coords) for interior in g.interiors)
+    return coord_count
+
+
 def get_feature_filename(row, idx) -> str:
     """Generates a clean filename for a feature based on its tags and relation ID
 
@@ -250,7 +279,16 @@ def to_files(
 
         feature_gdf = GeoDataFrame([row], crs=gdf.crs)
 
+        # Calculate coordinate count to determine if GeoJSON should be skipped
+        coord_count = get_geometry_coordinate_count(row.geometry)
+        skip_geojson = coord_count > 50000
+        if skip_geojson:
+            logger.info(f"Skipping GeoJSON for {feature_name_clean} (too large: {coord_count:,} coordinates)")
+
         for driver in formats:
+            # Skip GeoJSON if geometry is too large
+            if skip_geojson and driver.upper() == "GEOJSON":
+                continue
             gpd_to_file(driver_lookup[driver.upper()], p, filename, feature_gdf)
 
 
