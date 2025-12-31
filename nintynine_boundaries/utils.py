@@ -148,17 +148,17 @@ def get_geometry_coordinate_count(geom) -> int:
         Total number of coordinates in the geometry
     """
     coord_count = 0
-    if hasattr(geom, 'exterior'):
+    if hasattr(geom, "exterior"):
         # Single polygon
         coord_count = len(geom.exterior.coords)
-        if hasattr(geom, 'interiors'):
+        if hasattr(geom, "interiors"):
             coord_count += sum(len(interior.coords) for interior in geom.interiors)
-    elif hasattr(geom, 'geoms'):
+    elif hasattr(geom, "geoms"):
         # MultiPolygon or GeometryCollection
         for g in geom.geoms:
-            if hasattr(g, 'exterior'):
+            if hasattr(g, "exterior"):
                 coord_count += len(g.exterior.coords)
-                if hasattr(g, 'interiors'):
+                if hasattr(g, "interiors"):
                     coord_count += sum(len(interior.coords) for interior in g.interiors)
     return coord_count
 
@@ -283,7 +283,7 @@ def to_files(
         coord_count = get_geometry_coordinate_count(row.geometry)
         skip_geojson = coord_count > 50000
         if skip_geojson:
-            logger.debug(f"Skipping GeoJSON for {feature_name_clean} (too large: {coord_count:,} coordinates)")
+            logger.info(f"Skipping GeoJSON for {feature_name_clean} (too large: {coord_count:,} coordinates)")
 
         for driver in formats:
             # Skip GeoJSON if geometry is too large
