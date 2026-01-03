@@ -12,7 +12,7 @@ A simple command line utility to generate administrative boundary polygons from 
 
 - Generate maritime and land boundaries for any country
 - Support for multiple administrative levels (country, state/province, county, etc.)
-- Multiple output formats: GeoJSON, ESRI Shapefile, GeoPackage, CSV (WKT), MapInfo, KML, FlatGeobuf, PostgreSQL dump
+- Multiple output formats: GeoJSON, ESRI Shapefile, GeoPackage, GeoParquet, CSV (WKT), MapInfo, KML, FlatGeobuf, PostgreSQL dump
 - Batch processing for multiple countries at once
 - Uses OpenStreetMap data via Overpass API
 - High-quality land boundary generation with OSM land polygons
@@ -61,7 +61,7 @@ required arguments:
   -a ALPHA2 [ALPHA2 ...], --alpha2 ALPHA2 [ALPHA2 ...]
                         List of ISO-3166-1 alpha2 country codes, e.g. ES FR DE
   -f FORMATS [FORMATS ...], --formats FORMATS [FORMATS ...]
-                        Output formats, one or multiple of shp, gpkg, csv, geojson, mapinfo, kml, fgb, pgdump
+                        Output formats, one or multiple of shp, gpkg, csv, geojson, mapinfo, kml, fgb, pgdump, parquet
 
 optional arguments:
   -l MAX_ADMIN_LEVEL, --max_admin_level MAX_ADMIN_LEVEL
@@ -153,7 +153,7 @@ make_boundary --alpha2 NL --formats geojson --max_admin_level 4
 make_boundary --alpha2 NL --formats geojson --max_admin_level 6 --no-clean
 ```
 
-The file output formats can be ESRI Shapefile, GeoJSON, CSV, GeoPackage, MapInfo, KML, FlatGeobuf, or PostgreSQL dump and will be saved as archives into the `data` within this repository.
+The file output formats can be ESRI Shapefile, GeoJSON, CSV, GeoPackage, GeoParquet, MapInfo, KML, FlatGeobuf, or PostgreSQL dump and will be saved as archives into the `data` within this repository.
 
 ## Output
 

@@ -3,15 +3,20 @@ import warnings
 from logging import DEBUG, INFO, Formatter, Logger, StreamHandler, getLogger
 from pathlib import Path
 from shutil import rmtree
-from typing import List, Optional, Tuple, TypedDict, Union
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
 from zipfile import ZIP_DEFLATED, ZipFile
 
 warnings.simplefilter(action="ignore", category=UserWarning)
 warnings.simplefilter(action="ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", message=".*of field tags has been truncated to 254 characters*")
 
+import time
+
+import requests
 from geopandas import GeoDataFrame
+from osm2geojson import json2geojson, overpass_call
 from pandas import DataFrame
+from tqdm.auto import tqdm
 
 driver_lookup: dict[str, str] = {
     "GPKG": "GPKG",
@@ -22,6 +27,7 @@ driver_lookup: dict[str, str] = {
     "KML": "KML",
     "FGB": "FlatGeobuf",
     "PGDUMP": "PGDUMP",
+    "PARQUET": "Parquet",
 }
 
 
@@ -29,6 +35,18 @@ class Node(TypedDict):
     id: int
     lon_lat: Tuple[float, float]
     way_id: int
+
+
+class TqdmLoggingHandler(StreamHandler):
+    """Custom logging handler that writes through tqdm.write() to avoid conflicts with progress bars"""
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            tqdm.write(msg)
+            self.flush()
+        except Exception:
+            self.handleError(record)
 
 
 def setup_custom_logger(name: str, debug: bool) -> Logger:
@@ -47,7 +65,7 @@ def setup_custom_logger(name: str, debug: bool) -> Logger:
         the python Logger instance
     """
     formatter = Formatter(fmt="%(asctime)s - %(levelname)s - %(module)s - %(message)s")
-    handler = StreamHandler()
+    handler = TqdmLoggingHandler()
     handler.setFormatter(formatter)
 
     logger = getLogger(name)
@@ -58,6 +76,103 @@ def setup_custom_logger(name: str, debug: bool) -> Logger:
     logger.addHandler(handler)
 
     return logger
+
+
+def overpass_call_with_retry(
+    query: str, max_retries: int = 3, initial_delay: float = 5.0, logger: Optional[Logger] = None
+) -> Dict[str, Any]:
+    """Call Overpass API with retry logic and exponential backoff.
+
+    Parameters
+    ----------
+    query : str
+        The Overpass query string
+    max_retries : int
+        Maximum number of retry attempts (default: 3)
+    initial_delay : float
+        Initial delay in seconds before first retry (default: 5.0)
+    logger : Optional[Logger]
+        Logger instance for logging retry attempts
+
+    Returns
+    -------
+    Dict[str, Any]
+        GeoJSON data from the Overpass API
+
+    Raises
+    ------
+    requests.exceptions.HTTPError
+        If all retry attempts fail
+    """
+    delay = initial_delay
+
+    for attempt in range(max_retries):
+        try:
+            result = overpass_call(query)
+            return json2geojson(result)
+        except requests.exceptions.HTTPError as e:
+            if attempt < max_retries - 1:
+                if logger:
+                    logger.warning(
+                        f"Overpass API error (attempt {attempt + 1}/{max_retries}): {e}. "
+                        f"Retrying in {delay:.1f} seconds..."
+                    )
+                time.sleep(delay)
+                delay *= 2  # Exponential backoff
+            else:
+                if logger:
+                    logger.error(f"Overpass API failed after {max_retries} attempts: {e}")
+                raise
+        except Exception as e:
+            if logger:
+                logger.error(f"Unexpected error during Overpass API call: {e}")
+            raise
+
+    # This should never be reached, but just in case
+    raise RuntimeError("Unexpected error in overpass_call_with_retry")
+
+
+def apply_overlap_filter(
+    gdf: GeoDataFrame,
+    current_admin_level: int,
+    gdf_country_reference: Optional[GeoDataFrame],
+    logger: Logger,
+    boundary_type: str = "maritime",
+) -> GeoDataFrame:
+    """Apply 50% overlap filtering to admin level 3+ features.
+
+    Parameters
+    ----------
+    gdf : GeoDataFrame
+        The GeoDataFrame to filter
+    current_admin_level : int
+        Current administrative level being processed
+    gdf_country_reference : Optional[GeoDataFrame]
+        Reference country boundary (admin level 2)
+    logger : Logger
+        Logger instance for logging filter results
+    boundary_type : str
+        Type of boundary being filtered ("maritime" or "land") for logging
+
+    Returns
+    -------
+    GeoDataFrame
+        Filtered GeoDataFrame or original if filtering not applicable
+    """
+    if current_admin_level > 2 and gdf_country_reference is not None:
+        features_before = len(gdf)
+        gdf_filtered = filter_by_overlap(gdf, gdf_country_reference, min_overlap_ratio=0.5)
+        features_after = len(gdf_filtered)
+
+        if features_before > features_after:
+            logger.debug(
+                f"Filtered out {features_before - features_after} {boundary_type} features "
+                f"with <50% overlap (kept {features_after}/{features_before})"
+            )
+
+        return gdf_filtered
+
+    return gdf
 
 
 def zipdir(path: Union[str, Path], ziph: ZipFile) -> None:
@@ -108,6 +223,9 @@ def gpd_to_file(driver: str, p: Path, filename: str, gdf: GeoDataFrame) -> None:
         if "id" in gdf:
             gdf["id"] = gdf["id"].astype("float")
         gdf.to_file(filename=local_file, driver=driver)
+
+    elif driver == "Parquet":
+        gdf.to_parquet(local_file)
 
     else:
         gdf.to_file(filename=local_file, driver=driver)
@@ -259,7 +377,16 @@ def to_files(
         logger.debug(f"Unioned {len(gdf)} relation(s) at admin level {admin_level}")
 
     # Process each feature individually to ensure consistent folder naming
-    for position, (_, row) in enumerate(gdf.iterrows()):
+    for position, (_, row) in tqdm(
+        enumerate(gdf.iterrows()),
+        total=len(gdf),
+        desc=f"Exporting {boundary_type} features",
+        unit="feature",
+        leave=False,
+        position=2,
+        colour="#00FF00",
+        initial=1,
+    ):
         feature_name_clean = get_feature_filename(row, position)
 
         # Log details about the feature being saved
@@ -283,7 +410,7 @@ def to_files(
         coord_count = get_geometry_coordinate_count(row.geometry)
         skip_geojson = coord_count > 50000
         if skip_geojson:
-            logger.info(f"Skipping GeoJSON for {feature_name_clean} (too large: {coord_count:,} coordinates)")
+            logger.debug(f"Skipping GeoJSON for {feature_name_clean} (too large: {coord_count:,} coordinates)")
 
         for driver in formats:
             # Skip GeoJSON if geometry is too large
