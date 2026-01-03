@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "nintynine-boundaries"
-version = "0.2.3"
+version = "0.3.0"
 description = "Generate administrative boundaries with OpenStreetMap and Overpass"
 license = "MIT"
 authors = ["Timothy Ellersiek <merusame@gmail.com>"]
@@ -29,6 +29,8 @@ Rtree = "^1.3.0"
 numpy = "^2.0.0"
 requests = "^2.31.0"
 pandas = "^2.0.0"
+tqdm = "^4.66.0"
+pyarrow = "^18.0.0"
 
 [tool.poetry.group.dev.dependencies]
 isort = "^5.13.0"
