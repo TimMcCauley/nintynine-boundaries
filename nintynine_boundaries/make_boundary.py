@@ -10,6 +10,7 @@ from tqdm.auto import tqdm
 from nintynine_boundaries.utils import (
     apply_overlap_filter,
     clean_data_dir,
+    has_valid_polygons,
     make_overpass_query,
     make_overpass_query_fallback,
     overpass_call_with_retry,
@@ -171,20 +172,178 @@ def intersect_maritime_with_land(
     return land_features
 
 
-def has_valid_polygons(gdf: GeoDataFrame) -> bool:
-    """Check if GeoDataFrame contains Polygon or MultiPolygon geometries.
+def fetch_admin_level_data(
+    alpha2: str,
+    current_admin_level: int,
+    logger: logging.Logger
+) -> Optional[GeoDataFrame]:
+    """Fetch administrative boundary data from Overpass API.
 
     Parameters
     ----------
-    gdf : GeoDataFrame
-        GeoDataFrame to check
+    alpha2 : str
+        ISO-3166-1 alpha2 country code
+    current_admin_level : int
+        Current OSM administrative level to fetch
+    logger : logging.Logger
+        Logger instance
 
     Returns
     -------
-    bool
-        True if GeoDataFrame contains Polygon or MultiPolygon geometries
+    Optional[GeoDataFrame]
+        GeoDataFrame of maritime boundaries, or None if no data found
     """
-    return bool(set(gdf.geom_type).intersection({"MultiPolygon", "Polygon"}))
+    logger.debug(f"processing {alpha2} admin level {current_admin_level}...")
+
+    overpass_query: str = make_overpass_query(alpha2, current_admin_level, parent_admin_level=PARENT_ADMIN_LEVEL)
+    data: Dict[str, Any] = overpass_call_with_retry(overpass_query, logger=logger)
+
+    # If no results and admin level > 2, try fallback query using area-based search
+    if len(data["features"]) == 0 and current_admin_level > PARENT_ADMIN_LEVEL:
+        logger.debug(
+            f"No results from parent-child query, trying area-based fallback query for {alpha2} admin level {current_admin_level}..."
+        )
+        overpass_query = make_overpass_query_fallback(alpha2, current_admin_level)
+        data = overpass_call_with_retry(overpass_query, logger=logger)
+
+    if len(data["features"]) == 0:
+        return None
+
+    logger.debug(f"overpass returned {len(data['features'])} features")
+
+    gdf_maritime: GeoDataFrame = GeoDataFrame.from_features(features=data, crs=DEFAULT_CRS)
+    logger.debug(
+        f"Before filtering: {len(gdf_maritime)} features, geometry types: {gdf_maritime.geom_type.value_counts().to_dict()}"
+    )
+
+    # we only want to keep polygons
+    gdf_maritime = gdf_maritime[gdf_maritime["geometry"].apply(lambda x: x.geom_type != "Point")]
+    logger.debug(f"After removing points: {len(gdf_maritime)} features")
+
+    gdf_maritime = gdf_maritime.explode(index_parts=False)
+    logger.debug(
+        f"After explode: {len(gdf_maritime)} polygon features, geometry types: {gdf_maritime.geom_type.value_counts().to_dict()}"
+    )
+
+    return gdf_maritime
+
+
+def process_maritime_boundaries(
+    alpha2: str,
+    current_admin_level: int,
+    gdf_maritime: GeoDataFrame,
+    gdf_country_reference: Optional[GeoDataFrame],
+    formats: List[str],
+    output_path: Path,
+    logger: logging.Logger
+) -> None:
+    """Process and export maritime boundaries.
+
+    Parameters
+    ----------
+    alpha2 : str
+        ISO-3166-1 alpha2 country code
+    current_admin_level : int
+        Current OSM administrative level
+    gdf_maritime : GeoDataFrame
+        Maritime boundary GeoDataFrame
+    gdf_country_reference : Optional[GeoDataFrame]
+        Reference GeoDataFrame for admin level 2 boundary (for overlap filtering)
+    formats : List[str]
+        Output formats to generate
+    output_path : Path
+        Output directory path
+    logger : logging.Logger
+        Logger instance
+    """
+    # Filter admin level 3+ by 50% overlap with country boundary to exclude neighboring countries
+    gdf_maritime = apply_overlap_filter(
+        gdf_maritime, current_admin_level, gdf_country_reference, logger, "maritime"
+    )
+
+    if not has_valid_polygons(gdf_maritime):
+        return
+
+    to_files(
+        current_admin_level,
+        alpha2,
+        gdf_maritime,
+        formats,
+        include_maritime=True,
+        output_path=output_path,
+    )
+
+    logger.debug(f"saved {alpha2} admin level {current_admin_level} maritime boundary")
+
+
+def process_land_boundaries(
+    alpha2: str,
+    current_admin_level: int,
+    gdf_maritime: GeoDataFrame,
+    gdf_country_reference: Optional[GeoDataFrame],
+    land_data_dir: Path,
+    formats: List[str],
+    output_path: Path,
+    logger: logging.Logger
+) -> None:
+    """Process and export land boundaries by intersecting maritime boundaries with land polygons.
+
+    Parameters
+    ----------
+    alpha2 : str
+        ISO-3166-1 alpha2 country code
+    current_admin_level : int
+        Current OSM administrative level
+    gdf_maritime : GeoDataFrame
+        Maritime boundary GeoDataFrame
+    gdf_country_reference : Optional[GeoDataFrame]
+        Reference GeoDataFrame for admin level 2 boundary (for overlap filtering)
+    land_data_dir : Path
+        Path to OSM land data polygons folder
+    formats : List[str]
+        Output formats to generate
+    output_path : Path
+        Output directory path
+    logger : logging.Logger
+        Logger instance
+    """
+    logger.debug(f"Processing land polygons for {alpha2} admin level {current_admin_level}...")
+    bbox = tuple(gdf_maritime.total_bounds)
+
+    logger.debug(f"Reading land polygons from {land_data_dir}...")
+    gdf_osm_land: GeoDataFrame = read_file(
+        land_data_dir,
+        bbox=bbox,
+    )
+    logger.debug(f"Loaded {len(gdf_osm_land)} land polygon features within bounding box")
+
+    # Process each maritime feature individually to preserve attributes
+    land_features = intersect_maritime_with_land(gdf_maritime, gdf_osm_land, logger)
+
+    if land_features:
+        gdf_intersection: GeoDataFrame = GeoDataFrame(land_features, crs=DEFAULT_CRS)
+
+        logger.debug(f"Overlaying land polygons complete - processed {len(land_features)} features")
+
+        # Filter land boundaries by 50% overlap for admin level 3+ as well
+        gdf_intersection = apply_overlap_filter(
+            gdf_intersection, current_admin_level, gdf_country_reference, logger, "land"
+        )
+
+        to_files(
+            current_admin_level,
+            alpha2,
+            gdf_intersection,
+            formats,
+            include_maritime=False,
+            output_path=output_path,
+        )
+
+        logger.debug(f"saved {alpha2} admin level {current_admin_level} land boundary\n")
+    else:
+        logger.debug(
+            f"No land intersection features found for {alpha2} admin level {current_admin_level}"
+        )
 
 
 def process_admin_level(
@@ -220,102 +379,40 @@ def process_admin_level(
     Optional[GeoDataFrame]
         GeoDataFrame of admin level 2 boundary if current_admin_level == 2, otherwise None
     """
-    logger.debug(f"processing {alpha2} admin level {current_admin_level}...")
+    # Fetch data from Overpass API
+    gdf_maritime = fetch_admin_level_data(alpha2, current_admin_level, logger)
 
-    overpass_query: str = make_overpass_query(alpha2, current_admin_level, parent_admin_level=PARENT_ADMIN_LEVEL)
-    data: Dict[str, Any] = overpass_call_with_retry(overpass_query, logger=logger)
-
-    # If no results and admin level > 2, try fallback query using area-based search
-    if len(data["features"]) == 0 and current_admin_level > PARENT_ADMIN_LEVEL:
-        logger.debug(
-            f"No results from parent-child query, trying area-based fallback query for {alpha2} admin level {current_admin_level}..."
-        )
-        overpass_query = make_overpass_query_fallback(alpha2, current_admin_level)
-        data = overpass_call_with_retry(overpass_query, logger=logger)
-
-    if len(data["features"]) == 0:
+    if gdf_maritime is None:
         return None
-
-    logger.debug(f"overpass returned {len(data['features'])} features")
-
-    gdf_maritime: GeoDataFrame = GeoDataFrame.from_features(features=data, crs=DEFAULT_CRS)
-    logger.debug(
-        f"Before filtering: {len(gdf_maritime)} features, geometry types: {gdf_maritime.geom_type.value_counts().to_dict()}"
-    )
-
-    # we only want to keep polygons
-    gdf_maritime = gdf_maritime[gdf_maritime["geometry"].apply(lambda x: x.geom_type != "Point")]
-    logger.debug(f"After removing points: {len(gdf_maritime)} features")
-
-    gdf_maritime = gdf_maritime.explode(index_parts=False)
-    logger.debug(
-        f"After explode: {len(gdf_maritime)} polygon features, geometry types: {gdf_maritime.geom_type.value_counts().to_dict()}"
-    )
 
     # Store admin level 2 boundary as reference for filtering higher levels
     reference_gdf = None
     if current_admin_level == PARENT_ADMIN_LEVEL:
         reference_gdf = gdf_maritime.copy()
 
-    # Filter admin level 3+ by 50% overlap with country boundary to exclude neighboring countries
-    gdf_maritime = apply_overlap_filter(
-        gdf_maritime, current_admin_level, gdf_country_reference, logger, "maritime"
-    )
-
-    if not has_valid_polygons(gdf_maritime):
-        return reference_gdf
-
-    to_files(
-        current_admin_level,
+    # Process and export maritime boundaries
+    process_maritime_boundaries(
         alpha2,
+        current_admin_level,
         gdf_maritime,
+        gdf_country_reference,
         formats,
-        include_maritime=True,
-        output_path=output_path,
+        output_path,
+        logger
     )
 
-    logger.debug(f"saved {alpha2} admin level {current_admin_level} maritime boundary")
-
-    # we use the land data and intersect with the maritime
-    # administritive boundaries to obtain the coastal land boundaries
-    if land_data_dir:
-        logger.debug(f"Processing land polygons for {alpha2} admin level {current_admin_level}...")
-        bbox = tuple(gdf_maritime.total_bounds)
-
-        logger.debug(f"Reading land polygons from {land_data_dir}...")
-        gdf_osm_land: GeoDataFrame = read_file(
+    # Process land boundaries if land data is provided and we have valid polygons
+    if land_data_dir and has_valid_polygons(gdf_maritime):
+        process_land_boundaries(
+            alpha2,
+            current_admin_level,
+            gdf_maritime,
+            gdf_country_reference,
             land_data_dir,
-            bbox=bbox,
+            formats,
+            output_path,
+            logger
         )
-        logger.debug(f"Loaded {len(gdf_osm_land)} land polygon features within bounding box")
-
-        # Process each maritime feature individually to preserve attributes
-        land_features = intersect_maritime_with_land(gdf_maritime, gdf_osm_land, logger)
-
-        if land_features:
-            gdf_intersection: GeoDataFrame = GeoDataFrame(land_features, crs=DEFAULT_CRS)
-
-            logger.debug(f"Overlaying land polygons complete - processed {len(land_features)} features")
-
-            # Filter land boundaries by 50% overlap for admin level 3+ as well
-            gdf_intersection = apply_overlap_filter(
-                gdf_intersection, current_admin_level, gdf_country_reference, logger, "land"
-            )
-
-            to_files(
-                current_admin_level,
-                alpha2,
-                gdf_intersection,
-                formats,
-                include_maritime=False,
-                output_path=output_path,
-            )
-
-            logger.debug(f"saved {alpha2} admin level {current_admin_level} land boundary\n")
-        else:
-            logger.debug(
-                f"No land intersection features found for {alpha2} admin level {current_admin_level}"
-            )
 
     return reference_gdf
 
