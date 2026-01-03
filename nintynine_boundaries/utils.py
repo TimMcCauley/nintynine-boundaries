@@ -45,7 +45,9 @@ class TqdmLoggingHandler(StreamHandler):
 
 
 def suppress_pygrio_warnings() -> None:
-    """Suppress all PyGRIO/GDAL warnings."""
+    """Suppress all PyGRIO/GDAL and GeoPandas warnings."""
+    warnings.simplefilter(action="ignore", category=UserWarning)
+    warnings.simplefilter(action="ignore", category=FutureWarning)
     warnings.simplefilter(action="ignore", category=RuntimeWarning)
 
 
@@ -507,6 +509,22 @@ def make_overpass_query_fallback(alpha2: str, admin_level: int) -> str:
         """
     else:
         raise ValueError(f"Admin level {admin_level} is not supported.")
+
+
+def has_valid_polygons(gdf: GeoDataFrame) -> bool:
+    """Check if GeoDataFrame contains Polygon or MultiPolygon geometries.
+
+    Parameters
+    ----------
+    gdf : GeoDataFrame
+        GeoDataFrame to check
+
+    Returns
+    -------
+    bool
+        True if GeoDataFrame contains Polygon or MultiPolygon geometries
+    """
+    return bool(set(gdf.geom_type).intersection({"MultiPolygon", "Polygon"}))
 
 
 def filter_by_overlap(gdf: GeoDataFrame, reference_gdf: GeoDataFrame, min_overlap_ratio: float = 0.5) -> GeoDataFrame:
