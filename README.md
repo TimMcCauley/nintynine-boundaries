@@ -55,7 +55,8 @@ eval $(poetry env activate)
 ```sh
 make_boundary --help
 usage: make_boundary [-h] -a ALPHA2 [ALPHA2 ...] -f FORMATS [FORMATS ...] [-l MAX_ADMIN_LEVEL] [-d LAND_DATA_DIR]
-                     [--debug] [--no-debug] [--clean] [--no-clean] [-o OUTPUT_PATH]
+                     [--debug] [--no-debug] [--clean] [--no-clean] [--suppress-warnings] [--no-suppress-warnings]
+                     [-o OUTPUT_PATH]
 
 required arguments:
   -a ALPHA2 [ALPHA2 ...], --alpha2 ALPHA2 [ALPHA2 ...]
@@ -74,8 +75,11 @@ optional arguments:
                         Output directory path for generated boundary files (default: data/)
   --debug               Enable debug logging
   --no-debug            Disable debug logging (default)
-  --clean               Clean the data directory before processing (default)
-  --no-clean            Skip cleaning the data directory
+  --clean               Clean the data directory before processing
+  --no-clean            Skip cleaning the data directory (default)
+  --suppress-warnings   Suppress PyGRIO/GDAL warnings (default)
+  --no-suppress-warnings
+                        Show PyGRIO/GDAL warnings
 ```
 
 Depending on the selected country the processing time will vary. While the maritime boundaries will take a few seconds to be generated, the land boundaries will take longer due superior spatial detail. Land boundaries for countries with with greater coverage, e.g. the United States, Canada or France, can take up to 45 minutes to be generated and will require up to 8g of memory. The reasons are resource hungry geopandas overlay operations intersecting the maritime boundaries with the OSM land polygons dataset.
@@ -152,6 +156,17 @@ make_boundary --alpha2 NL --formats geojson --max_admin_level 4
 # Second run: Add admin levels 5-6 without removing previous data
 make_boundary --alpha2 NL --formats geojson --max_admin_level 6 --no-clean
 ```
+
+### Warning Suppression
+
+By default, the tool suppresses PyGRIO/GDAL warnings (such as field truncation warnings when exporting to certain formats). To see all warnings during processing:
+
+```bash
+# Show all PyGRIO/GDAL warnings
+make_boundary --alpha2 ES --formats shp --no-suppress-warnings
+```
+
+This can be helpful for debugging issues or understanding what's happening with data conversions.
 
 The file output formats can be ESRI Shapefile, GeoJSON, CSV, GeoPackage, GeoParquet, MapInfo, KML, FlatGeobuf, or PostgreSQL dump and will be saved as archives into the `data` within this repository.
 

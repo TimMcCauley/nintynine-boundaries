@@ -1,16 +1,11 @@
 import os
+import time
 import warnings
 from logging import DEBUG, INFO, Formatter, Logger, StreamHandler, getLogger
 from pathlib import Path
 from shutil import rmtree
 from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
 from zipfile import ZIP_DEFLATED, ZipFile
-
-warnings.simplefilter(action="ignore", category=UserWarning)
-warnings.simplefilter(action="ignore", category=FutureWarning)
-warnings.filterwarnings("ignore", message=".*of field tags has been truncated to 254 characters*")
-
-import time
 
 import requests
 from geopandas import GeoDataFrame
@@ -47,6 +42,11 @@ class TqdmLoggingHandler(StreamHandler):
             self.flush()
         except Exception:
             self.handleError(record)
+
+
+def suppress_pygrio_warnings() -> None:
+    """Suppress all PyGRIO/GDAL warnings."""
+    warnings.simplefilter(action="ignore", category=RuntimeWarning)
 
 
 def setup_custom_logger(name: str, debug: bool) -> Logger:
