@@ -184,6 +184,10 @@ def zipdir(path: Union[str, Path], ziph: ZipFile) -> None:
         the path to the directory to zip
     ziph : ZipFile
         zip file handler
+
+    Returns
+    -------
+    None
     """
     for root, dirs, files in os.walk(path):
         for file in files:
@@ -206,6 +210,10 @@ def gpd_to_file(driver: str, p: Path, filename: str, gdf: GeoDataFrame) -> None:
         the filename to be generated
     gdf : GeoDataFrame
         the GeoDataFrame to be used
+
+    Returns
+    -------
+    None
     """
     folder: Path = p / driver.replace(" ", "")
     folder.mkdir(exist_ok=True)
@@ -327,10 +335,16 @@ def to_files(
         the country name
     gdf : GeoDataFrame
         the geodataframe holding the data
+    formats : List[str]
+        list of output formats to export (e.g., ['shp', 'gpkg', 'geojson'])
     include_maritime : bool
         whether we are dealing with martime boundaries or not
     output_path : Path
         the output directory path
+
+    Returns
+    -------
+    None
     """
     import logging
 

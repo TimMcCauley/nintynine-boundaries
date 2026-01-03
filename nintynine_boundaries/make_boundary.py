@@ -19,6 +19,14 @@ from nintynine_boundaries.utils import (
 
 
 def cmdline_args() -> Namespace:
+    """Parse command line arguments for the boundary generation tool.
+
+    Returns
+    -------
+    Namespace
+        Parsed command line arguments including alpha2 country codes, formats,
+        max_admin_level, land_data_dir, debug flag, clean flag, and output_path
+    """
     parser = ArgumentParser()
 
     parser._action_groups.pop()
